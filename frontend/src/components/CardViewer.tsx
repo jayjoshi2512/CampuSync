@@ -1,102 +1,105 @@
 // frontend/src/components/CardViewer.tsx
-import { useState, useRef, useCallback } from 'react';
-import { motion, useSpring, useMotionValue, useTransform } from 'framer-motion';
-import QRCode from 'react-qr-code';
+// Required: npm install qrcode @types/qrcode
+import { useState, useRef, useCallback, useEffect } from "react";
+import { motion, useSpring, useMotionValue, useTransform } from "framer-motion";
+import QRCodeLib from "qrcode";
 
-// ─── 8 Premium CR80 Card Templates ────────────────────────────────────────────
-export const TEMPLATES: Record<string, {
-  name: string;
-  bg: string;
-  accent: string;
-  textColor: string;
-  mutedColor: string;
-  style: string;
-  font: string;
-  monoFont: string;
-}> = {
+export const TEMPLATES: Record<
+  string,
+  {
+    name: string;
+    bg: string;
+    accent: string;
+    textColor: string;
+    mutedColor: string;
+    style: string;
+    font: string;
+    monoFont: string;
+  }
+> = {
   tmpl_obsidian: {
-    name: 'Obsidian Sovereign',
-    bg: '#0A0A0A',
-    accent: '#C9A84C',
-    textColor: '#FFFFFF',
-    mutedColor: '#888888',
-    style: 'obsidian',
+    name: "Black Centurion",
+    bg: "#050505",
+    accent: "#C8A84C",
+    textColor: "#F2EDE0",
+    mutedColor: "rgba(200,168,76,0.5)",
+    style: "obsidian",
     font: "'Cormorant Garamond', serif",
-    monoFont: "'Optima', 'Cormorant Garamond', serif",
+    monoFont: "'DM Mono', monospace",
   },
   tmpl_aurora: {
-    name: 'Aurora Glass',
-    bg: 'rgba(255,255,255,0.06)',
-    accent: '#00F5FF',
-    textColor: '#FFFFFF',
-    mutedColor: 'rgba(255,255,255,0.55)',
-    style: 'aurora',
+    name: "Sapphire Vault",
+    bg: "#04091A",
+    accent: "#5B8DEF",
+    textColor: "#E8F2FF",
+    mutedColor: "rgba(140,180,240,0.55)",
+    style: "aurora",
     font: "'DM Sans', sans-serif",
     monoFont: "'DM Mono', monospace",
   },
   tmpl_crimson: {
-    name: 'Crimson Chapter',
-    bg: '#1C0A0A',
-    accent: '#C8A45A',
-    textColor: '#F5ECD7',
-    mutedColor: 'rgba(245,236,215,0.55)',
-    style: 'crimson',
+    name: "Burgundy Vault",
+    bg: "#0A0206",
+    accent: "#B8860B",
+    textColor: "#F0E6D0",
+    mutedColor: "rgba(184,134,11,0.55)",
+    style: "crimson",
     font: "'Playfair Display', serif",
     monoFont: "'Playfair Display', serif",
   },
   tmpl_solar: {
-    name: 'Solar Pulse',
-    bg: 'linear-gradient(135deg, #FF8C00 0%, #FFD700 100%)',
-    accent: '#1A0A00',
-    textColor: '#1A0A00',
-    mutedColor: 'rgba(30,12,0,0.55)',
-    style: 'solar',
+    name: "Emerald Cipher",
+    bg: "#020D08",
+    accent: "#00C896",
+    textColor: "#D0FFE8",
+    mutedColor: "rgba(0,200,150,0.5)",
+    style: "solar",
     font: "'DM Sans', sans-serif",
-    monoFont: "'DM Sans', sans-serif",
+    monoFont: "'JetBrains Mono', monospace",
   },
   tmpl_deepspace: {
-    name: 'Deep Space',
-    bg: '#040810',
-    accent: '#6494FF',
-    textColor: '#E8F4FF',
-    mutedColor: 'rgba(140,200,255,0.55)',
-    style: 'deepspace',
+    name: "Deep Space",
+    bg: "#040810",
+    accent: "#6494FF",
+    textColor: "#E8F4FF",
+    mutedColor: "rgba(140,200,255,0.55)",
+    style: "deepspace",
     font: "'Clash Display', 'DM Sans', sans-serif",
     monoFont: "'JetBrains Mono', monospace",
   },
   tmpl_ivory: {
-    name: 'Ivory Press',
-    bg: '#F5F0E8',
-    accent: '#1A1814',
-    textColor: '#1A1814',
-    mutedColor: 'rgba(26,24,20,0.55)',
-    style: 'ivory',
+    name: "Bronze Ghost",
+    bg: "#090604",
+    accent: "#B87333",
+    textColor: "#EAD8C0",
+    mutedColor: "rgba(184,115,51,0.52)",
+    style: "ivory",
     font: "'Cormorant Garamond', serif",
-    monoFont: "'Cormorant Garamond', serif",
+    monoFont: "'DM Mono', monospace",
   },
   tmpl_neon: {
-    name: 'Neon Gradient',
-    bg: '#08060E',
-    accent: '#3A86FF',
-    textColor: '#FFFFFF',
-    mutedColor: 'rgba(255,255,255,0.4)',
-    style: 'neon',
-    font: "'Clash Display', 'DM Sans', sans-serif",
+    name: "Void Fintech",
+    bg: "#06060C",
+    accent: "#7C83F0",
+    textColor: "#EDEDFF",
+    mutedColor: "rgba(150,155,230,0.5)",
+    style: "neon",
+    font: "'DM Sans', sans-serif",
     monoFont: "'DM Mono', monospace",
   },
   tmpl_circuit: {
-    name: 'Silver Circuit',
-    bg: '#B8BCC4',
-    accent: '#1A1E26',
-    textColor: '#1A1E26',
-    mutedColor: 'rgba(26,30,38,0.55)',
-    style: 'circuit',
-    font: "'DM Mono', monospace",
+    name: "Arctic Ghost",
+    bg: "#020508",
+    accent: "#9CB8DC",
+    textColor: "#E0EEFF",
+    mutedColor: "rgba(156,184,220,0.48)",
+    style: "circuit",
+    font: "'DM Sans', sans-serif",
     monoFont: "'DM Mono', monospace",
   },
 };
 
-interface CardData {
+export interface CardData {
   name: string;
   roll_number?: string;
   branch?: string;
@@ -116,386 +119,1980 @@ interface CardViewerProps {
   card: CardData;
   interactive?: boolean;
   compact?: boolean;
-  renderMode?: 'full' | 'front' | 'back';
+  renderMode?: "full" | "front" | "back";
+  displayScale?: number;
 }
 
-export default function CardViewer({ card, interactive = true, compact = false, renderMode = 'full' }: CardViewerProps) {
-  const templateId = (card.template_id || 'tmpl_obsidian') as keyof typeof TEMPLATES;
+/** CSS background-image data URI — html2canvas-safe (no url(#id) refs) */
+const svgBg = (
+  svgContent: string,
+  w: number,
+  h: number,
+  op = 1,
+): React.CSSProperties => ({
+  backgroundImage: `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgContent)}")`,
+  backgroundSize: `${w}px ${h}px`,
+  backgroundRepeat: "repeat",
+  opacity: op,
+  position: "absolute",
+  inset: 0,
+  pointerEvents: "none",
+});
+
+export default function CardViewer({
+  card,
+  interactive = true,
+  compact = false,
+  renderMode = "full",
+  displayScale = 1,
+}: CardViewerProps) {
+  const templateId = (card.template_id ||
+    "tmpl_obsidian") as keyof typeof TEMPLATES;
   const template = TEMPLATES[templateId] || TEMPLATES.tmpl_obsidian;
   const s = template.style;
+  const sc = (n: number) => Math.round(n * displayScale);
+
+  // Export mode: renderMode !== 'full' — hide shadow to remove the dark border artifact
+  const isExport = renderMode !== "full";
+
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  useEffect(() => {
+    const qrValue = card.qr_hash
+      ? `${window.location.origin}/api/user/qr-login/${card.qr_hash}`
+      : `${window.location.origin}/portal?user=${encodeURIComponent(card.name || "")}`;
+    QRCodeLib.toDataURL(qrValue, {
+      width: 256,
+      margin: 1,
+      errorCorrectionLevel: "L",
+      color: { dark: "#000000", light: "#ffffff" },
+    })
+      .then(setQrDataUrl)
+      .catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.qr_hash, card.name]);
 
   const [isFlipped, setIsFlipped] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStartX = useRef(0);
+  const mouseX = useMotionValue(0.5),
+    mouseY = useMotionValue(0.5);
+  const rotateY = useSpring(0, { stiffness: 300, damping: 32 });
+  const rotateX = useSpring(0, { stiffness: 300, damping: 32 });
 
-  const mouseX = useMotionValue(0.5);
-  const mouseY = useMotionValue(0.5);
-  const rotateY = useSpring(0, { stiffness: 260, damping: 28 });
-  const rotateX = useSpring(0, { stiffness: 260, damping: 28 });
+  const shimmerBg = useTransform([mouseX, mouseY], ([x, y]: number[]) => {
+    const c =
+      s === "obsidian"
+        ? "rgba(200,168,76,0.2)"
+        : s === "aurora"
+          ? "rgba(91,141,239,0.18)"
+          : s === "crimson"
+            ? "rgba(184,134,11,0.15)"
+            : s === "solar"
+              ? "rgba(0,200,150,0.16)"
+              : s === "deepspace"
+                ? "rgba(100,148,255,0.18)"
+                : s === "ivory"
+                  ? "rgba(184,115,51,0.15)"
+                  : s === "neon"
+                    ? "rgba(124,131,240,0.18)"
+                    : "rgba(156,184,220,0.14)";
+    return `radial-gradient(circle at ${(x as number) * 100}% ${(y as number) * 100}%, ${c}, transparent 55%)`;
+  });
 
-  const shimmerBg = useTransform(
-    [mouseX, mouseY],
-    ([x, y]: number[]) =>
-      `radial-gradient(circle at ${x * 100}% ${y * 100}%, ${s === 'obsidian' ? 'rgba(201,168,76,0.2)' : s === 'aurora' ? 'rgba(0,245,255,0.15)' : s === 'neon' ? 'rgba(131,56,236,0.2)' : 'rgba(255,255,255,0.12)'}, transparent 55%)`
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!containerRef.current || isDragging || !interactive) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      mouseX.set((e.clientX - rect.left) / rect.width);
+      mouseY.set((e.clientY - rect.top) / rect.height);
+      rotateY.set(((e.clientX - rect.left) / rect.width - 0.5) * 16);
+      rotateX.set((0.5 - (e.clientY - rect.top) / rect.height) * 9);
+    },
+    [isDragging, interactive, mouseX, mouseY, rotateX, rotateY],
   );
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!containerRef.current || isDragging) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    mouseX.set(x); mouseY.set(y);
-    if (interactive) { rotateY.set((x - 0.5) * 18); rotateX.set((0.5 - y) * 10); }
-  }, [isDragging, interactive, mouseX, mouseY, rotateX, rotateY]);
-
-  const handleMouseLeave = () => { if (!isDragging) { rotateY.set(isFlipped ? 180 : 0); rotateX.set(0); } };
-
+  const handleMouseLeave = () => {
+    if (!isDragging) {
+      rotateY.set(isFlipped ? 180 : 0);
+      rotateX.set(0);
+    }
+  };
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (!interactive) return;
     setIsDragging(true);
-    dragStartX.current = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    dragStartX.current = "touches" in e ? e.touches[0].clientX : e.clientX;
   };
   const handleDragMove = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDragging || !interactive) return;
-    const cx = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    rotateY.set((isFlipped ? 180 : 0) + (cx - dragStartX.current) * 0.5);
+    rotateY.set(
+      (isFlipped ? 180 : 0) +
+        ("touches" in e
+          ? e.touches[0].clientX
+          : e.clientX - dragStartX.current) *
+          0.5,
+    );
   };
   const handleDragEnd = () => {
     if (!isDragging) return;
     setIsDragging(false);
-    const cur = rotateY.get();
-    const snap = Math.abs(cur % 360) > 90 ? (isFlipped ? 0 : 180) : (isFlipped ? 180 : 0);
-    rotateY.set(snap); setIsFlipped(snap === 180);
+    const n = ((rotateY.get() % 360) + 360) % 360;
+    const snap =
+      n > 90 && n < 270 ? (isFlipped ? 0 : 180) : isFlipped ? 180 : 0;
+    rotateY.set(snap);
+    setIsFlipped(snap === 180);
   };
-  const flip = () => { const n = !isFlipped; rotateY.set(n ? 180 : 0); rotateX.set(0); setIsFlipped(n); };
+  const flip = () => {
+    const n = !isFlipped;
+    rotateY.set(n ? 180 : 0);
+    rotateX.set(0);
+    setIsFlipped(n);
+  };
 
-  // CR80 horizontal: 85.6:54 ≈ 1.585
-  const W = compact ? 280 : 360;
-  const H = Math.round(W / 1.585);
-  const P = compact ? 14 : 16;
+  const BASE_W = compact ? 280 : 360;
+  const BASE_H = Math.round(BASE_W / 1.5852);
+  const W = sc(BASE_W),
+    H = sc(BASE_H),
+    P = sc(compact ? 13 : 15);
   const YEAR = card.batch_year || 2026;
-  const INITIAL = card.name?.[0]?.toUpperCase() || '?';
-  const TAGLINE = card.tagline || (s === 'deepspace' ? 'Not all who wander are lost. // Some just graduated.' : s === 'circuit' ? 'Engineered to last. // Graduated to build.' : s === 'crimson' ? 'The chapter ends. The story begins.' : '');
+  const INITIAL = card.name?.[0]?.toUpperCase() || "?";
 
-  // Card background
+  const tagline =
+    card.tagline ||
+    (s === "deepspace"
+      ? "Not all who wander are lost. // Some just graduated."
+      : s === "neon"
+        ? "Shipped. Deployed. Graduated."
+        : s === "obsidian"
+          ? "Excellence is not a moment. It is a standard."
+          : s === "circuit"
+            ? "Classified. Graduated. Deployed."
+            : s === "solar"
+              ? "Encrypted. Verified. Graduated."
+              : "");
+
+  const QR_COL_W = sc(compact ? 74 : 88);
+  const QR_BOX = QR_COL_W - sc(4);
+
   const cardBg = (): string => {
-    if (s === 'obsidian' || s === 'ivory') return template.bg;
-    if (s === 'crimson') return 'radial-gradient(circle at center, #2A0E0E, #120606)';
-    if (s === 'solar') return 'linear-gradient(135deg, #FF8C00 0%, #FFD700 100%)';
-    if (s === 'deepspace') return '#040810';
-    if (s === 'circuit') return '#B8BCC4';
-    if (s === 'aurora') return 'linear-gradient(145deg, rgba(15,23,42,0.92), rgba(30,41,59,0.75))';
-    if (s === 'neon') return 'linear-gradient(135deg, #FF006E22, #8338EC33, #3A86FF33, #06FFB422)';
+    if (s === "obsidian")
+      return "radial-gradient(ellipse at 20% 0%, #141414 0%, #050505 65%)";
+    if (s === "aurora")
+      return "linear-gradient(150deg, #040C1E 0%, #071530 55%, #040A18 100%)";
+    if (s === "crimson")
+      return "radial-gradient(ellipse at 25% 0%, #180512 0%, #0A0206 70%)";
+    if (s === "solar")
+      return "radial-gradient(ellipse at 20% 0%, #031408 0%, #020D08 70%)";
+    if (s === "deepspace") return "#040810";
+    if (s === "ivory")
+      return "radial-gradient(ellipse at 20% 0%, #130A05 0%, #090604 70%)";
+    if (s === "neon")
+      return "radial-gradient(ellipse at 15% 20%, #0C0C18 0%, #06060C 70%)";
+    if (s === "circuit")
+      return "radial-gradient(ellipse at 20% 0%, #070C14 0%, #020508 70%)";
     return template.bg;
   };
 
+  const cardShadow = (): string => {
+    // ── FIX: no shadow in export mode — removes dark border artifact ──
+    if (isExport) return "none";
+    const r = (n: number) => `${Math.round(n * displayScale)}px`;
+    if (s === "obsidian")
+      return `0 ${r(4)} ${r(16)} rgba(0,0,0,0.9),0 ${r(16)} ${r(48)} rgba(0,0,0,0.7),0 0 0 ${r(0.5)} rgba(200,168,76,0.25),inset 0 ${r(1)} 0 rgba(200,168,76,0.08)`;
+    if (s === "aurora")
+      return `0 ${r(4)} ${r(16)} rgba(0,8,30,0.9),0 ${r(16)} ${r(48)} rgba(0,8,30,0.6),0 0 0 ${r(0.5)} rgba(91,141,239,0.25),inset 0 ${r(1)} 0 rgba(91,141,239,0.1)`;
+    if (s === "crimson")
+      return `0 ${r(4)} ${r(16)} rgba(10,2,6,0.95),0 ${r(16)} ${r(48)} rgba(10,2,6,0.7),0 0 0 ${r(0.5)} rgba(184,134,11,0.22),inset 0 ${r(1)} 0 rgba(184,134,11,0.07)`;
+    if (s === "solar")
+      return `0 ${r(4)} ${r(16)} rgba(2,13,8,0.95),0 ${r(16)} ${r(48)} rgba(2,13,8,0.7),0 0 0 ${r(0.5)} rgba(0,200,150,0.2),inset 0 ${r(1)} 0 rgba(0,200,150,0.08)`;
+    if (s === "deepspace")
+      return `0 ${r(4)} ${r(16)} rgba(0,0,0,0.95),0 ${r(16)} ${r(48)} rgba(0,0,0,0.8),0 0 0 ${r(0.5)} rgba(100,148,255,0.18),inset 0 ${r(1)} 0 rgba(100,148,255,0.07)`;
+    if (s === "ivory")
+      return `0 ${r(4)} ${r(16)} rgba(9,6,4,0.95),0 ${r(16)} ${r(48)} rgba(9,6,4,0.7),0 0 0 ${r(0.5)} rgba(184,115,51,0.22),inset 0 ${r(1)} 0 rgba(184,115,51,0.07)`;
+    if (s === "neon")
+      return `0 ${r(4)} ${r(16)} rgba(0,0,0,0.95),0 ${r(16)} ${r(48)} rgba(0,0,0,0.8),0 0 0 ${r(0.5)} rgba(124,131,240,0.22),inset 0 ${r(1)} 0 rgba(124,131,240,0.07)`;
+    if (s === "circuit")
+      return `0 ${r(4)} ${r(16)} rgba(2,5,8,0.95),0 ${r(16)} ${r(48)} rgba(2,5,8,0.8),0 0 0 ${r(0.5)} rgba(156,184,220,0.2),inset 0 ${r(1)} 0 rgba(156,184,220,0.05)`;
+    return `0 ${r(16)} ${r(60)} rgba(0,0,0,0.7)`;
+  };
+
   const faceBase: React.CSSProperties = {
-    position: 'absolute', width: '100%', height: '100%',
-    backfaceVisibility: 'hidden',
-    borderRadius: s === 'ivory' ? 8 : compact ? 12 : 16,
-    overflow: 'hidden',
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    backfaceVisibility: "hidden",
+    WebkitBackfaceVisibility: "hidden",
+    borderRadius: sc(compact ? 12 : 16),
+    overflow: "hidden",
     background: cardBg(),
-    boxShadow: s === 'ivory'
-      ? '0 4px 20px rgba(0,0,0,0.08)'
-      : `0 16px 60px rgba(0,0,0,0.5), 0 0 0 1px ${s === 'obsidian' ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.06)'}`,
+    boxShadow: cardShadow(),
+    willChange: interactive ? "transform" : "auto",
+    transform: "translateZ(0)",
+    WebkitFontSmoothing: "antialiased" as any,
+    MozOsxFontSmoothing: "grayscale" as any,
+  };
+
+  const sm: React.CSSProperties = {
+    WebkitFontSmoothing: "antialiased" as any,
+    MozOsxFontSmoothing: "grayscale" as any,
+    textRendering: "optimizeLegibility" as any,
+  };
+  const fs = {
+    orgName: sc(compact ? 6 : 7),
+    name: sc(compact ? 14 : 19),
+    meta: sc(compact ? 7.5 : 8.5),
+    tagline: sc(compact ? 5.5 : 6.5),
+    cta: sc(compact ? 5.5 : 6.5),
+    icon: sc(20),
+  };
+  const sep =
+    s === "obsidian"
+      ? "rgba(200,168,76,0.15)"
+      : s === "aurora"
+        ? "rgba(91,141,239,0.18)"
+        : s === "crimson"
+          ? "rgba(184,134,11,0.15)"
+          : s === "solar"
+            ? "rgba(0,200,150,0.15)"
+            : s === "deepspace"
+              ? "rgba(100,148,255,0.15)"
+              : s === "ivory"
+                ? "rgba(184,115,51,0.15)"
+                : s === "neon"
+                  ? "rgba(124,131,240,0.15)"
+                  : "rgba(156,184,220,0.12)";
+
+  // ── CSS background-image pattern builders (html2canvas-safe) ──
+  const diaPat = () => {
+    const d = sc(14),
+      h = sc(7);
+    return svgBg(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}"><path d="M${h},0 L${d},${h} L${h},${d} L0,${h} Z" stroke="%23C8A84C" stroke-width="0.6" fill="none"/></svg>`,
+      d,
+      d,
+      0.04,
+    );
+  };
+  const hLine = (col: string, sp: number) => {
+    const h = sc(sp),
+      m = sc(sp / 2);
+    return svgBg(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="${h}"><line x1="0" y1="${m}" x2="100" y2="${m}" stroke="${encodeURIComponent(col)}" stroke-width="0.5"/></svg>`,
+      100,
+      h,
+      0.055,
+    );
+  };
+  const xhatch = (col: string) => {
+    const d = sc(18);
+    return svgBg(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}" transform="rotate(35)"><line x1="0" y1="0" x2="0" y2="${d}" stroke="${encodeURIComponent(col)}" stroke-width="0.5"/><line x1="0" y1="0" x2="${d}" y2="0" stroke="${encodeURIComponent(col)}" stroke-width="0.25"/></svg>`,
+      d,
+      d,
+      0.045,
+    );
+  };
+  const dotGrid = (col: string) => {
+    const d = sc(28),
+      c = sc(14),
+      r = sc(1);
+    return svgBg(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}"><rect width="${d}" height="${d}" fill="none" stroke="${encodeURIComponent(col)}" stroke-width="0.5"/><circle cx="${c}" cy="${c}" r="${r}" fill="${encodeURIComponent(col)}" opacity="0.6"/></svg>`,
+      d,
+      d,
+      0.065,
+    );
+  };
+  const sqGrid = (col: string) => {
+    const d = sc(32);
+    return svgBg(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}"><rect width="${d}" height="${d}" fill="none" stroke="${encodeURIComponent(col)}" stroke-width="0.5"/></svg>`,
+      d,
+      d,
+      0.06,
+    );
+  };
+  const brush = (col: string) => {
+    const d = sc(5);
+    return svgBg(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}" transform="rotate(8)"><line x1="0" y1="0" x2="${d}" y2="0" stroke="${encodeURIComponent(col)}" stroke-width="0.5"/></svg>`,
+      d,
+      d,
+      0.06,
+    );
+  };
+
+  // ── Scattered particle dots — generated from seed, no defs ──
+  const scatterDots = (
+    count: number,
+    col: string,
+    opacity: number,
+    rMin: number,
+    rMax: number,
+    seed = 1,
+  ) => {
+    const dots = Array.from({ length: count }, (_, i) => {
+      const x = ((i * 137.508 * seed + i * i * 0.7) % 97) + 1.5;
+      const y = ((i * 89.37 * seed + i * i * 0.4) % 93) + 3;
+      const r = rMin + ((i % 5) * (rMax - rMin)) / 4;
+      return `<circle cx="${x}%" cy="${y}%" r="${sc(r)}" fill="${col}" opacity="${opacity + (i % 3) * 0.08}"/>`;
+    }).join("");
+    return dots;
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: sc(12),
+      }}
+    >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=JetBrains+Mono:wght@400;500;600&display=swap');
-        @keyframes auroraShift { 0%,100%{filter:hue-rotate(0deg)} 50%{filter:hue-rotate(60deg)} }
-        @keyframes starTwinkle { 0%,100%{opacity:0.3} 50%{opacity:0.9} }
-        @keyframes neonPulse { 0%,100%{opacity:0.5} 50%{opacity:0.85} }
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,300;1,400;1,600&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+        @keyframes auroraShimmer { 0%,100%{opacity:0.5;transform:translateX(-6%)} 50%{opacity:1;transform:translateX(6%)} }
+        @keyframes emeraldPulse  { 0%,100%{opacity:0.4} 50%{opacity:0.7} }
+        @keyframes neonEdge      { 0%,100%{opacity:0.35} 50%{opacity:0.85} }
+        @keyframes arcticGlow    { 0%,100%{opacity:0.3} 50%{opacity:0.65} }
+        @keyframes goldShimmer   { 0%,100%{opacity:0.4} 50%{opacity:0.75} }
+        @keyframes copperDrift   { 0%,100%{opacity:0.35} 50%{opacity:0.6} }
+        .pcard-face * { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; font-optical-sizing:auto; }
       `}</style>
 
-      <div ref={containerRef}
-        onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
-        onMouseDown={handleDragStart} onMouseUp={handleDragEnd}
-        onTouchStart={handleDragStart} onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}
-        style={{ perspective: 1200, width: W, height: H, cursor: interactive ? (isDragging ? 'grabbing' : 'grab') : 'default', userSelect: 'none' }}
+      {/* Outer perspective container — exact card pixel dimensions, no extra padding */}
+      <div
+        ref={containerRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onMouseDown={handleDragStart}
+        onMouseUp={handleDragEnd}
+        onTouchStart={handleDragStart}
+        onTouchMove={handleDragMove}
+        onTouchEnd={handleDragEnd}
+        style={{
+          perspective: sc(1200),
+          width: W,
+          height: H,
+          cursor: interactive ? (isDragging ? "grabbing" : "grab") : "default",
+          userSelect: "none",
+          willChange: interactive ? "transform" : "auto",
+          position: "relative",
+        }}
       >
-        <motion.div style={{
-          width: '100%', height: '100%',
-          transformStyle: renderMode === 'full' ? 'preserve-3d' : 'flat',
-          rotateY: renderMode === 'full' ? rotateY : (renderMode === 'back' ? 180 : 0),
-          rotateX: renderMode === 'full' ? rotateX : 0
-        }}>
-
-          {/* ═══════════════ FRONT FACE ═══════════════ */}
-          {renderMode !== 'back' && (
-            <div style={{
-              ...faceBase,
-              transform: renderMode === 'full' ? 'translateZ(1px)' : 'none',
-              backfaceVisibility: renderMode === 'full' ? 'hidden' : 'visible'
-            }}>
-            {/* Shimmer overlay (all templates) */}
-            <motion.div style={{ position: 'absolute', inset: 0, background: shimmerBg, borderRadius: 'inherit', pointerEvents: 'none', zIndex: 5 }} />
-
-            {/* ── Template-specific background layers ── */}
-
-            {/* OBSIDIAN: gold edge lines + foil sheen */}
-            {s === 'obsidian' && <>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)' }} />
-              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)' }} />
-              <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: 1, background: 'linear-gradient(180deg, transparent, #C9A84C55, transparent)' }} />
-              <div style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: 1, background: 'linear-gradient(180deg, transparent, #C9A84C55, transparent)' }} />
-            </>}
-
-            {/* AURORA: frosted glass + iridescent layer + corner brackets */}
-            {s === 'aurora' && <>
-              <div style={{ position: 'absolute', inset: 0, background: 'conic-gradient(from 45deg, #00F5FF22, #FF00E522, #00FF8822, #7B2FFF22, #00F5FF22)', animation: 'auroraShift 6s ease infinite', pointerEvents: 'none', zIndex: 1 }} />
-              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.07, pointerEvents: 'none', zIndex: 2 }}>
-                <defs><pattern id="cb" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M0 20H15M25 20H40M20 0V15M20 25V40" stroke="#38BDF8" strokeWidth="0.5" />
-                  <circle cx="20" cy="20" r="2.5" stroke="#38BDF8" strokeWidth="0.5" fill="none" />
-                </pattern></defs>
-                <rect width="100%" height="100%" fill="url(#cb)" />
-              </svg>
-              {/* Corner brackets */}
-              {[[6,6,'top-left'],[6,H-14,'bottom-left'],[W-14,6,'top-right'],[W-14,H-14,'bottom-right']].map(([x,y,key]) => (
-                <div key={key as string} style={{ position: 'absolute', left: x as number, top: y as number, width: 8, height: 8, border: '0.5px solid rgba(255,255,255,0.3)',
-                  borderRight: key === 'top-left' || key === 'bottom-left' ? 'none' : undefined,
-                  borderLeft: key === 'top-right' || key === 'bottom-right' ? 'none' : undefined,
-                  borderBottom: key === 'top-left' || key === 'top-right' ? 'none' : undefined,
-                  borderTop: key === 'bottom-left' || key === 'bottom-right' ? 'none' : undefined,
-                  zIndex: 3, pointerEvents: 'none',
-                }} />
-              ))}
-            </>}
-
-            {/* CRIMSON: warm gradient + deboss pattern + decorative column */}
-            {s === 'crimson' && <>
-              <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, #2A0E0E, #120606)', zIndex: 0, pointerEvents: 'none' }} />
-              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'24\' height=\'24\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'3\' stroke=\'%23C8A45A\' stroke-width=\'0.3\' fill=\'none\'/%3E%3C/svg%3E")', opacity: 0.04, pointerEvents: 'none', zIndex: 1 }} />
-              <div style={{ position: 'absolute', top: 8, bottom: 8, right: 0, width: 4, background: '#C8A45A', opacity: 0.2, zIndex: 2, pointerEvents: 'none' }} />
-            </>}
-
-            {/* SOLAR: sun rays + gloss */}
-            {s === 'solar' && <>
-              <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.18), transparent 60%)', pointerEvents: 'none', zIndex: 1 }} />
-              <svg style={{ position: 'absolute', bottom: 0, right: 0, width: '60%', height: '100%', opacity: 0.12, pointerEvents: 'none', zIndex: 2 }}>
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <line key={i} x1="100%" y1="100%" x2={`${50 + Math.cos(i * 0.5) * 120}%`} y2={`${50 + Math.sin(i * 0.5) * 120}%`} stroke="#FFD700" strokeWidth="0.5" />
-                ))}
-              </svg>
-            </>}
-
-            {/* DEEP SPACE: star field + nebula */}
-            {s === 'deepspace' && <>
-              <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 15% 25%, rgba(80,0,200,0.08), transparent 50%), radial-gradient(circle at 80% 75%, rgba(0,80,200,0.06), transparent 50%)', pointerEvents: 'none', zIndex: 1 }} />
-              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2 }}>
-                {Array.from({ length: 60 }).map((_, i) => (
-                  <circle key={i} cx={`${(i * 17.3 + i * i * 0.7) % 100}%`} cy={`${(i * 23.7 + i * i * 0.3) % 100}%`} r={0.3 + (i % 4) * 0.2} fill="white" opacity={0.15 + (i % 5) * 0.12}>
-                    {i % 7 === 0 && <animate attributeName="opacity" values="0.2;0.8;0.2" dur={`${2 + i % 3}s`} repeatCount="indefinite" />}
-                  </circle>
-                ))}
-                {/* Constellation */}
-                <g transform={`translate(${W - 36}, 10)`} opacity="0.3">
-                  <circle cx="0" cy="0" r="1" fill="white" /><circle cx="6" cy="4" r="1" fill="white" />
-                  <circle cx="12" cy="2" r="1" fill="white" /><circle cx="10" cy="10" r="1" fill="white" />
-                  <line x1="0" y1="0" x2="6" y2="4" stroke="white" strokeWidth="0.3" />
-                  <line x1="6" y1="4" x2="12" y2="2" stroke="white" strokeWidth="0.3" />
-                  <line x1="6" y1="4" x2="10" y2="10" stroke="white" strokeWidth="0.3" />
-                </g>
-                {/* Orbital ring around QR area */}
-                <ellipse cx={W - 28} cy={H - 28} rx="28" ry="22" fill="none" stroke="rgba(100,148,255,0.12)" strokeWidth="0.5" strokeDasharray="3,4" />
-              </svg>
-            </>}
-
-            {/* IVORY: paper grain + hairline rule */}
-            {s === 'ivory' && <>
-              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'4\' height=\'4\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Crect width=\'4\' height=\'4\' fill=\'%23F5F0E8\'/%3E%3Crect x=\'0\' y=\'0\' width=\'2\' height=\'2\' fill=\'%23EDE8DF\' opacity=\'0.3\'/%3E%3C/svg%3E")', pointerEvents: 'none', zIndex: 1 }} />
-              <div style={{ position: 'absolute', top: '35%', left: 0, right: 0, height: 0.5, background: 'rgba(26,24,20,0.12)', zIndex: 2, pointerEvents: 'none' }} />
-            </>}
-
-            {/* NEON: vivid gradient wash */}
-            {s === 'neon' && <>
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(255,0,110,0.35), rgba(131,56,236,0.35), rgba(58,134,255,0.35), rgba(6,255,180,0.25))', pointerEvents: 'none', zIndex: 1 }} />
-              <div style={{ position: 'absolute', inset: 0, background: 'conic-gradient(from 0deg, rgba(255,0,110,0.1), rgba(131,56,236,0.1), rgba(58,134,255,0.1), rgba(255,0,110,0.1))', animation: 'neonPulse 3s ease infinite', pointerEvents: 'none', zIndex: 2 }} />
-            </>}
-
-            {/* CIRCUIT: brushed metal + PCB traces */}
-            {s === 'circuit' && <>
-              <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 4px)', pointerEvents: 'none', zIndex: 1 }} />
-              <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.25), transparent 60%)', pointerEvents: 'none', zIndex: 2 }} />
-              <svg style={{ position: 'absolute', bottom: 0, left: 0, width: '40%', height: '50%', opacity: 0.05, pointerEvents: 'none', zIndex: 3 }}>
-                <path d="M0,100 L30,100 L30,70 L60,70 L60,40 L90,40 M30,70 L30,30 L50,30" stroke="#1A1E26" strokeWidth="1" fill="none" />
-                <circle cx="30" cy="70" r="3" stroke="#1A1E26" strokeWidth="0.5" fill="none" />
-                <circle cx="60" cy="40" r="3" stroke="#1A1E26" strokeWidth="0.5" fill="none" />
-              </svg>
-            </>}
-
-            {/* ── Content Layer ── */}
-            <div style={{ position: 'relative', zIndex: 10, padding: P, height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
-
-              {/* Top row: logo/name */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'auto' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {card.org_logo_url ? (
-                    <img src={card.org_logo_url} alt="" style={{ width: 22, height: 22, borderRadius: s === 'ivory' ? 2 : 4, objectFit: 'cover', filter: s === 'obsidian' ? 'sepia(1) saturate(3) brightness(0.9) hue-rotate(10deg)' : undefined }} />
-                  ) : (
-                    <div style={{ width: 22, height: 22, borderRadius: s === 'ivory' ? 2 : 4, background: s === 'obsidian' ? '#C9A84C22' : s === 'ivory' ? '#1A181408' : `${template.accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: template.accent }}>
-                      🎓
-                    </div>
-                  )}
-                  <span style={{
-                    fontSize: compact ? 6.5 : 7.5, color: s === 'obsidian' ? '#C9A84C' : template.mutedColor,
-                    fontWeight: s === 'ivory' ? 400 : 600, textTransform: 'uppercase',
-                    letterSpacing: s === 'crimson' || s === 'obsidian' ? '0.25em' : '0.15em',
-                    fontFamily: template.font,
-                  }}>
-                    {card.org_name || 'Institution'}
-                  </span>
-                </div>
-              </div>
-
-              {/* CRIMSON: watermark initial */}
-              {s === 'crimson' && (
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: compact ? 80 : 110, fontWeight: 700, color: 'rgba(200,164,90,0.07)', fontFamily: "'Playfair Display', serif", pointerEvents: 'none', zIndex: 0 }}>
-                  {INITIAL}
-                </div>
+        <motion.div
+          style={{
+            width: "100%",
+            height: "100%",
+            transformStyle: renderMode === "full" ? "preserve-3d" : "flat",
+            rotateY: renderMode === "full" ? rotateY : 0,
+            rotateX: renderMode === "full" ? rotateX : 0,
+          }}
+        >
+          {/* ════════════════ FRONT ════════════════ */}
+          {renderMode !== "back" && (
+            <div
+              className="pcard-face"
+              style={{
+                ...faceBase,
+                transform:
+                  renderMode === "full" ? "translateZ(1px)" : "translateZ(0)",
+                backfaceVisibility:
+                  renderMode === "full" ? "hidden" : "visible",
+                WebkitBackfaceVisibility:
+                  renderMode === "full" ? "hidden" : ("visible" as any),
+              }}
+            >
+              {/* Shimmer — interactive only, not in export */}
+              {!isExport && (
+                <motion.div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: shimmerBg,
+                    borderRadius: "inherit",
+                    pointerEvents: "none",
+                    zIndex: 6,
+                  }}
+                />
               )}
 
-              {/* Center: name + details */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', zIndex: 1 }}>
-                <h2 style={{
-                  fontSize: compact ? 16 : s === 'ivory' ? 22 : 20,
-                  fontWeight: s === 'ivory' ? 700 : s === 'crimson' ? 600 : 800,
-                  margin: 0, marginBottom: 3, lineHeight: 1.2,
-                  color: s === 'obsidian' ? '#FFFFFF' : template.textColor,
-                  fontFamily: template.font,
-                  letterSpacing: s === 'obsidian' ? 0 : -0.3,
-                  textShadow: s === 'aurora' ? '0 0 20px rgba(0,245,255,0.5)' : s === 'neon' ? '0 0 30px rgba(58,134,255,0.4)' : 'none',
-                  filter: s === 'ivory' ? 'drop-shadow(0 0.5px 0 rgba(200,190,170,1))' : 'none',
-                }}>
-                  {card.name || 'Student Name'}
-                </h2>
-                <p style={{ fontSize: compact ? 8.5 : 9, color: s === 'obsidian' ? '#888' : s === 'crimson' ? '#C8A45A' : template.accent, fontWeight: 500, margin: 0, fontFamily: template.monoFont, fontStyle: s === 'crimson' ? 'italic' : 'normal' }}>
-                  {card.branch || 'Department'} · {YEAR}
-                </p>
-                <div style={{ width: s === 'ivory' ? '100%' : compact ? 80 : 100, height: s === 'crimson' ? 0.5 : s === 'solar' ? 2 : 1, marginTop: 6, background: s === 'ivory' ? 'rgba(26,24,20,0.12)' : s === 'obsidian' ? '#C9A84C' : s === 'crimson' ? '#C8A45A' : `${template.accent}44` }} />
-
-                {/* Tagline (if applicable) */}
-                {TAGLINE && (
-                  <p style={{ fontSize: compact ? 6.5 : 7.5, color: template.mutedColor, marginTop: 6, fontFamily: template.monoFont, fontStyle: s === 'crimson' ? 'italic' : 'normal', lineHeight: 1.5, maxWidth: '70%' }}>
-                    {TAGLINE}
-                  </p>
-                )}
-
-                {/* VARSITY-style year for Solar */}
-                {s === 'solar' && (
-                  <div style={{ position: 'absolute', right: 0, bottom: 0, fontSize: compact ? 36 : 48, fontWeight: 900, color: 'rgba(30,12,0,0.08)', fontFamily: template.font, lineHeight: 1 }}>
-                    {YEAR}
-                  </div>
-                )}
-              </div>
-
-              {/* Bottom row: CTA + QR */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <div>
-                  {/* CTA */}
-                  {s === 'obsidian' || s === 'solar' ? (
-                    <div style={{
-                      display: 'inline-block', padding: `${compact ? 3 : 4}px ${compact ? 8 : 12}px`,
-                      border: `0.5px solid ${s === 'obsidian' ? '#C9A84C' : 'rgba(30,12,0,0.3)'}`,
-                      borderRadius: 10, background: s === 'solar' ? 'rgba(255,255,255,0.18)' : 'transparent',
-                    }}>
-                      <span style={{ fontSize: compact ? 5.5 : 6.5, color: s === 'obsidian' ? '#C9A84C' : '#1A0A00', fontFamily: template.monoFont, fontWeight: 500 }}>
-                        {s === 'obsidian' ? 'View Memories' : 'Open Memories'}
-                      </span>
-                    </div>
-                  ) : s === 'neon' ? (
-                    <div style={{
-                      display: 'inline-block', padding: `${compact ? 3 : 4}px ${compact ? 8 : 12}px`,
-                      border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10,
-                      backdropFilter: 'blur(10px)', background: 'rgba(255,255,255,0.06)',
-                    }}>
-                      <span style={{ fontSize: compact ? 5.5 : 6.5, color: '#fff', fontFamily: template.font, fontWeight: 600 }}>See Memories</span>
-                    </div>
-                  ) : (
-                    <span style={{
-                      fontSize: compact ? 6 : 7,
-                      color: s === 'aurora' ? 'rgba(0,245,255,0.8)' : s === 'crimson' ? '#C8A45A' : s === 'circuit' ? 'rgba(26,30,38,0.65)' : template.mutedColor,
-                      fontFamily: template.monoFont,
-                      fontStyle: s === 'crimson' ? 'italic' : 'normal',
-                    }}>
-                  {s === 'aurora' ? 'View Memories →' : s === 'crimson' ? 'Read the Story →' : s === 'deepspace' ? 'Launch Portal →' : s === 'ivory' ? 'View Memories' : s === 'circuit' ? 'Access Memories >' : 'View Memories →'}
-                    </span>
-                  )}
-                </div>
-
-                {/* QR code area — actual functional QR */}
-                <div style={{
-                  width: compact ? 38 : 46, height: compact ? 38 : 46, borderRadius: 6,
-                  background: '#ffffff',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-                }}>
-                  <QRCode
-                    value={card.qr_hash ? `${window.location.origin}/api/user/qr-login/${card.qr_hash}` : `${window.location.origin}/portal?user=${card.name}`}
-                    size={compact ? 30 : 38}
-                    level="L"
-                    bgColor="#ffffff"
-                    fgColor="#000000"
-                  />
-                </div>
-              </div>
-              </div>
-            </div>
-          )}
-
-          {/* ═══════════════ BACK FACE ═══════════════ */}
-          {renderMode !== 'front' && (
-            <div style={{
-              ...faceBase,
-              transform: renderMode === 'full' ? 'rotateY(180deg)' : 'none',
-              backfaceVisibility: renderMode === 'full' ? 'hidden' : 'visible',
-              background: (card.card_back_image_url || card.back_image_url)
-                ? `url(${card.card_back_image_url || card.back_image_url}) center/cover`
-              : s === 'ivory' ? '#F5F0E8'
-              : s === 'solar' ? 'linear-gradient(315deg, #FFD700 0%, #FF8C00 100%)'
-              : s === 'circuit' ? '#B8BCC4'
-              : 'linear-gradient(145deg, #0a0a0a, #1a1a2e)',
-          }}>
-            {/* Vignette / overlay */}
-            <div style={{
-              position: 'absolute', inset: 0, zIndex: 1,
-              background: card.card_back_image_url || card.back_image_url
-                ? (s === 'crimson' ? 'radial-gradient(circle, rgba(200,140,80,0.1) 30%, rgba(28,10,10,0.55) 100%)' : 'radial-gradient(circle, transparent 30%, rgba(0,0,0,0.55) 100%)')
-                : 'none',
-            }} />
-
-              <div style={{ position: 'relative', zIndex: 2, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: P, textAlign: 'center' }}>
-              {!(card.card_back_image_url || card.back_image_url) && (
+              {/* ══════════════════════════════════════════════════════
+                  OBSIDIAN: diamond lattice + golden corner ornaments
+                  + scattered gold dust particles
+              ══════════════════════════════════════════════════════ */}
+              {s === "obsidian" && (
                 <>
-                  <div style={{ fontSize: 40, marginBottom: 10, opacity: 0.6 }}>📸</div>
-                  <p style={{ color: s === 'ivory' ? '#5D3A1A' : s === 'solar' ? '#1A0A00' : s === 'circuit' ? '#1A1E26' : 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 500, fontFamily: template.font }}>Class Photo</p>
-                  <p style={{ color: s === 'ivory' ? '#8B7355' : s === 'solar' ? 'rgba(30,12,0,0.5)' : s === 'circuit' ? 'rgba(26,30,38,0.5)' : 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 4, fontFamily: template.monoFont }}>Uploaded by your admin</p>
+                  <div style={{ ...diaPat(), zIndex: 1 }} />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: "45%",
+                      background:
+                        "radial-gradient(ellipse at 30% 0%, rgba(200,168,76,0.09) 0%, transparent 65%)",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  />
+                  {/* Scattered gold dust particles */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  >
+                    {scatterDots(28, "#C8A84C", 0.18, 0.5, 1.2, 3)
+                      .split("/>")
+                      .filter(Boolean)
+                      .map((d, i) => (
+                        <circle key={i} {...parseCircle(d)} />
+                      ))}
+                  </svg>
+                  {/* Corner ornaments — picture frame lines */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }}
+                  >
+                    {/* Top-left */}
+                    <line
+                      x1={sc(8)}
+                      y1={sc(8)}
+                      x2={sc(28)}
+                      y2={sc(8)}
+                      stroke="#C8A84C"
+                      strokeWidth="0.7"
+                      opacity="0.5"
+                    />
+                    <line
+                      x1={sc(8)}
+                      y1={sc(8)}
+                      x2={sc(8)}
+                      y2={sc(28)}
+                      stroke="#C8A84C"
+                      strokeWidth="0.7"
+                      opacity="0.5"
+                    />
+                    {/* Top-right */}
+                    <line
+                      x1={W - sc(8)}
+                      y1={sc(8)}
+                      x2={W - sc(28)}
+                      y2={sc(8)}
+                      stroke="#C8A84C"
+                      strokeWidth="0.7"
+                      opacity="0.5"
+                    />
+                    <line
+                      x1={W - sc(8)}
+                      y1={sc(8)}
+                      x2={W - sc(8)}
+                      y2={sc(28)}
+                      stroke="#C8A84C"
+                      strokeWidth="0.7"
+                      opacity="0.5"
+                    />
+                    {/* Bottom-left */}
+                    <line
+                      x1={sc(8)}
+                      y1={H - sc(8)}
+                      x2={sc(28)}
+                      y2={H - sc(8)}
+                      stroke="#C8A84C"
+                      strokeWidth="0.7"
+                      opacity="0.35"
+                    />
+                    <line
+                      x1={sc(8)}
+                      y1={H - sc(8)}
+                      x2={sc(8)}
+                      y2={H - sc(28)}
+                      stroke="#C8A84C"
+                      strokeWidth="0.7"
+                      opacity="0.35"
+                    />
+                    {/* Bottom-right */}
+                    <line
+                      x1={W - sc(8)}
+                      y1={H - sc(8)}
+                      x2={W - sc(28)}
+                      y2={H - sc(8)}
+                      stroke="#C8A84C"
+                      strokeWidth="0.7"
+                      opacity="0.35"
+                    />
+                    <line
+                      x1={W - sc(8)}
+                      y1={H - sc(8)}
+                      x2={W - sc(8)}
+                      y2={H - sc(28)}
+                      stroke="#C8A84C"
+                      strokeWidth="0.7"
+                      opacity="0.35"
+                    />
+                    {/* Centre diamond accent */}
+                    <circle
+                      cx={W / 2}
+                      cy={H / 2}
+                      r={sc(18)}
+                      fill="none"
+                      stroke="#C8A84C"
+                      strokeWidth="0.4"
+                      opacity="0.08"
+                    />
+                    <circle
+                      cx={W / 2}
+                      cy={H / 2}
+                      r={sc(6)}
+                      fill="none"
+                      stroke="#C8A84C"
+                      strokeWidth="0.4"
+                      opacity="0.12"
+                    />
+                  </svg>
+                  {/* Hairlines */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${sc(0.5)}px`,
+                      background:
+                        "linear-gradient(90deg, transparent 5%, rgba(200,168,76,0.55) 30%, rgba(220,190,130,0.95) 50%, rgba(200,168,76,0.55) 70%, transparent 95%)",
+                      pointerEvents: "none",
+                      zIndex: 4,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${sc(0.5)}px`,
+                      background:
+                        "linear-gradient(90deg, transparent 10%, rgba(200,168,76,0.35) 40%, rgba(200,168,76,0.55) 50%, rgba(200,168,76,0.35) 60%, transparent 90%)",
+                      pointerEvents: "none",
+                      zIndex: 4,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: sc(14),
+                      bottom: sc(14),
+                      left: 0,
+                      width: `${sc(3)}px`,
+                      background:
+                        "linear-gradient(180deg, transparent, #C8A84C 25%, #C8A84C 75%, transparent)",
+                      opacity: 0.4,
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }}
+                  />
+                  {/* Animated shimmer layer */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "linear-gradient(125deg, rgba(200,168,76,0.03) 0%, transparent 40%, rgba(200,168,76,0.05) 100%)",
+                      animation: "goldShimmer 5s ease-in-out infinite",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  />
                 </>
               )}
 
-              <div style={{ position: 'absolute', bottom: P, left: P, right: P, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 8, color: s === 'ivory' ? 'rgba(26,24,20,0.5)' : s === 'solar' ? 'rgba(30,12,0,0.45)' : s === 'circuit' ? 'rgba(26,30,38,0.45)' : 'rgba(255,255,255,0.35)', fontFamily: template.monoFont, fontWeight: 600 }}>{card.org_name}</span>
-              </div>
+              {/* ══════════════════════════════════════════════════════
+                  AURORA: pinstripes + network nodes + scattered
+                  hexagon rings + diagonal light sweep
+              ══════════════════════════════════════════════════════ */}
+              {s === "aurora" && (
+                <>
+                  <div style={{ ...hLine("#5B8DEF", 8), zIndex: 1 }} />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "linear-gradient(128deg, rgba(91,141,239,0.12) 0%, transparent 48%, rgba(15,55,160,0.06) 100%)",
+                      animation: "auroraShimmer 8s ease-in-out infinite",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "50%",
+                      height: "60%",
+                      background:
+                        "radial-gradient(ellipse at 0% 0%, rgba(91,141,239,0.14) 0%, transparent 70%)",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  />
+                  {/* Network nodes */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: QR_COL_W + sc(8),
+                      width: sc(80),
+                      height: sc(80),
+                      opacity: 0.22,
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }}
+                  >
+                    {(
+                      [
+                        [sc(10), sc(10)],
+                        [sc(30), sc(6)],
+                        [sc(50), sc(14)],
+                        [sc(20), sc(28)],
+                        [sc(42), sc(30)],
+                        [sc(60), sc(24)],
+                        [sc(70), sc(8)],
+                      ] as [number, number][]
+                    ).map(([x, y], i) => (
+                      <circle
+                        key={i}
+                        cx={x}
+                        cy={y}
+                        r={sc(1.5)}
+                        fill="#5B8DEF"
+                      />
+                    ))}
+                    {(
+                      [
+                        [sc(10), sc(10), sc(30), sc(6)],
+                        [sc(30), sc(6), sc(50), sc(14)],
+                        [sc(30), sc(6), sc(20), sc(28)],
+                        [sc(50), sc(14), sc(42), sc(30)],
+                        [sc(50), sc(14), sc(60), sc(24)],
+                        [sc(60), sc(24), sc(70), sc(8)],
+                      ] as [number, number, number, number][]
+                    ).map(([x1, y1, x2, y2], i) => (
+                      <line
+                        key={i}
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        stroke="#5B8DEF"
+                        strokeWidth="0.5"
+                      />
+                    ))}
+                  </svg>
+                  {/* Hexagon rings scattered */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                      opacity: 0.12,
+                    }}
+                  >
+                    {[
+                      [0.15 * W, 0.7 * H, sc(14)],
+                      [0.72 * W, 0.18 * H, sc(10)],
+                      [0.5 * W, 0.88 * H, sc(7)],
+                      [0.35 * W, 0.25 * H, sc(6)],
+                    ].map(([cx, cy, r], i) => {
+                      const pts = Array.from(
+                        { length: 6 },
+                        (_, k) =>
+                          `${cx + r * Math.cos((k * Math.PI) / 3)},${cy + r * Math.sin((k * Math.PI) / 3)}`,
+                      ).join(" ");
+                      return (
+                        <polygon
+                          key={i}
+                          points={pts}
+                          fill="none"
+                          stroke="#5B8DEF"
+                          strokeWidth="0.6"
+                        />
+                      );
+                    })}
+                  </svg>
+                  {/* Scattered dots */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  >
+                    {[
+                      [0.12, 0.45, sc(1)],
+                      [0.25, 0.78, sc(0.8)],
+                      [0.45, 0.6, sc(1.2)],
+                      [0.6, 0.82, sc(0.7)],
+                      [0.8, 0.55, sc(1)],
+                      [0.9, 0.3, sc(0.8)],
+                      [0.18, 0.2, sc(0.6)],
+                      [0.52, 0.3, sc(0.8)],
+                    ].map(([x, y, r], i) => (
+                      <circle
+                        key={i}
+                        cx={`${x * 100}%`}
+                        cy={`${y * 100}%`}
+                        r={r}
+                        fill="#5B8DEF"
+                        opacity="0.35"
+                      />
+                    ))}
+                  </svg>
+                  {/* Hairlines */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${sc(0.5)}px`,
+                      background:
+                        "linear-gradient(90deg, transparent 5%, rgba(91,141,239,0.5) 30%, rgba(91,141,239,0.95) 50%, rgba(91,141,239,0.5) 70%, transparent 95%)",
+                      pointerEvents: "none",
+                      zIndex: 4,
+                    }}
+                  />
+                </>
+              )}
+
+              {/* ══════════════════════════════════════════════════════
+                  CRIMSON: cross-hatch + scattered gold specks
+                  + monogram watermark + vine/leaf SVG bottom-right
+              ══════════════════════════════════════════════════════ */}
+              {s === "crimson" && (
+                <>
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "radial-gradient(ellipse at 35% 0%, rgba(120,40,0,0.15) 0%, transparent 60%)",
+                      pointerEvents: "none",
+                      zIndex: 1,
+                    }}
+                  />
+                  <div style={{ ...xhatch("#B8860B"), zIndex: 2 }} />
+                  {/* Monogram watermark */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%,-50%)",
+                      fontSize: sc(compact ? 90 : 125),
+                      fontWeight: 300,
+                      color: "rgba(184,134,11,0.05)",
+                      fontFamily: "'Playfair Display',serif",
+                      pointerEvents: "none",
+                      zIndex: 0,
+                      lineHeight: 1,
+                      userSelect: "none",
+                    }}
+                  >
+                    {INITIAL}
+                  </div>
+                  {/* Scattered gold specks */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  >
+                    {[
+                      [0.08, 0.55, sc(0.8)],
+                      [0.2, 0.3, sc(0.6)],
+                      [0.35, 0.72, sc(1)],
+                      [0.5, 0.18, sc(0.7)],
+                      [0.62, 0.65, sc(0.9)],
+                      [0.75, 0.4, sc(0.6)],
+                      [0.85, 0.75, sc(0.8)],
+                      [0.14, 0.85, sc(0.5)],
+                      [0.44, 0.9, sc(0.7)],
+                      [0.68, 0.12, sc(0.6)],
+                    ].map(([x, y, r], i) => (
+                      <circle
+                        key={i}
+                        cx={`${x * 100}%`}
+                        cy={`${y * 100}%`}
+                        r={r}
+                        fill="#B8860B"
+                        opacity="0.3"
+                      />
+                    ))}
+                  </svg>
+                  {/* Ornate vine pattern — bottom right corner */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      right: 0,
+                      width: sc(60),
+                      height: sc(50),
+                      opacity: 0.1,
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }}
+                  >
+                    <path
+                      d={`M${sc(60)},${sc(50)} C${sc(40)},${sc(30)} ${sc(20)},${sc(40)} ${sc(10)},${sc(20)}`}
+                      stroke="#B8860B"
+                      strokeWidth="0.8"
+                      fill="none"
+                    />
+                    <path
+                      d={`M${sc(50)},${sc(50)} C${sc(35)},${sc(35)} ${sc(30)},${sc(45)} ${sc(20)},${sc(30)}`}
+                      stroke="#B8860B"
+                      strokeWidth="0.5"
+                      fill="none"
+                    />
+                    <circle
+                      cx={sc(10)}
+                      cy={sc(20)}
+                      r={sc(2)}
+                      fill="#B8860B"
+                      opacity="0.8"
+                    />
+                    <circle
+                      cx={sc(20)}
+                      cy={sc(30)}
+                      r={sc(1.5)}
+                      fill="#B8860B"
+                      opacity="0.6"
+                    />
+                  </svg>
+                  {/* Side accent + hairline */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: sc(14),
+                      bottom: sc(14),
+                      right: 0,
+                      width: `${sc(2.5)}px`,
+                      background:
+                        "linear-gradient(180deg, transparent, #B8860B 25%, #B8860B 75%, transparent)",
+                      opacity: 0.45,
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${sc(0.5)}px`,
+                      background:
+                        "linear-gradient(90deg, transparent 10%, rgba(184,134,11,0.45) 40%, rgba(210,165,30,0.8) 50%, rgba(184,134,11,0.45) 60%, transparent 90%)",
+                      pointerEvents: "none",
+                      zIndex: 4,
+                    }}
+                  />
+                </>
+              )}
+
+              {/* ══════════════════════════════════════════════════════
+                  SOLAR / EMERALD: circuit traces + floating orbs
+                  + lock icon + data stream lines
+              ══════════════════════════════════════════════════════ */}
+              {s === "solar" && (
+                <>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "55%",
+                      height: "65%",
+                      background:
+                        "radial-gradient(ellipse at 0% 0%, rgba(0,200,150,0.07) 0%, transparent 70%)",
+                      pointerEvents: "none",
+                      zIndex: 1,
+                    }}
+                  />
+                  <div style={{ ...dotGrid("#00C896"), zIndex: 2 }} />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "linear-gradient(135deg, rgba(0,200,150,0.05) 0%, transparent 50%, rgba(0,100,75,0.08) 100%)",
+                      animation: "emeraldPulse 6s ease-in-out infinite",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  />
+                  {/* Circuit trace paths */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 3,
+                      opacity: 0.18,
+                    }}
+                  >
+                    <path
+                      d={`M${sc(10)},${H * 0.65} L${sc(40)},${H * 0.65} L${sc(40)},${H * 0.45} L${sc(80)},${H * 0.45}`}
+                      stroke="#00C896"
+                      strokeWidth="0.7"
+                      fill="none"
+                    />
+                    <path
+                      d={`M${sc(10)},${H * 0.8} L${sc(25)},${H * 0.8} L${sc(25)},${H * 0.55} L${sc(55)},${H * 0.55}`}
+                      stroke="#00C896"
+                      strokeWidth="0.5"
+                      fill="none"
+                    />
+                    <circle
+                      cx={sc(40)}
+                      cy={H * 0.45}
+                      r={sc(1.5)}
+                      fill="#00C896"
+                    />
+                    <circle
+                      cx={sc(25)}
+                      cy={H * 0.55}
+                      r={sc(1.2)}
+                      fill="#00C896"
+                    />
+                    <circle
+                      cx={sc(80)}
+                      cy={H * 0.45}
+                      r={sc(1)}
+                      fill="#00C896"
+                    />
+                    {/* Data stream dots */}
+                    {Array.from({ length: 8 }, (_, i) => (
+                      <circle
+                        key={i}
+                        cx={W * 0.6 + i * sc(8)}
+                        cy={H * 0.15}
+                        r={sc(0.8)}
+                        fill="#00C896"
+                        opacity={i % 2 === 0 ? 0.6 : 0.3}
+                      />
+                    ))}
+                  </svg>
+                  {/* Floating orbs */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  >
+                    {[
+                      [0.6, 0.3, sc(3)],
+                      [0.72, 0.65, sc(2)],
+                      [0.45, 0.85, sc(2.5)],
+                      [0.82, 0.2, sc(1.5)],
+                      [0.3, 0.5, sc(1.8)],
+                    ].map(([x, y, r], i) => (
+                      <circle
+                        key={i}
+                        cx={`${x * 100}%`}
+                        cy={`${y * 100}%`}
+                        r={r}
+                        fill="none"
+                        stroke="#00C896"
+                        strokeWidth="0.5"
+                        opacity="0.25"
+                      />
+                    ))}
+                  </svg>
+                  {/* Top hairline */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${sc(0.5)}px`,
+                      background:
+                        "linear-gradient(90deg, transparent 5%, rgba(0,200,150,0.5) 30%, rgba(0,230,170,0.95) 50%, rgba(0,200,150,0.5) 70%, transparent 95%)",
+                      pointerEvents: "none",
+                      zIndex: 4,
+                    }}
+                  />
+                </>
+              )}
+
+              {/* ══════════════════════════════════════════════════════
+                  DEEP SPACE: full star field + constellation
+                  + orbital rings + nebula glow (unchanged, best in class)
+              ══════════════════════════════════════════════════════ */}
+              {s === "deepspace" && (
+                <>
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "radial-gradient(circle at 15% 25%, rgba(80,0,200,0.08), transparent 50%), radial-gradient(circle at 80% 75%, rgba(0,80,200,0.06), transparent 50%)",
+                      pointerEvents: "none",
+                      zIndex: 1,
+                    }}
+                  />
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  >
+                    {/* Star field */}
+                    {Array.from({ length: 70 }).map((_, i) => (
+                      <circle
+                        key={i}
+                        cx={`${(i * 17.3 + i * i * 0.7) % 100}%`}
+                        cy={`${(i * 23.7 + i * i * 0.3) % 100}%`}
+                        r={sc(0.35 + (i % 4) * 0.2)}
+                        fill="white"
+                        opacity={0.15 + (i % 5) * 0.12}
+                      >
+                        {i % 7 === 0 && (
+                          <animate
+                            attributeName="opacity"
+                            values="0.12;0.85;0.12"
+                            dur={`${2 + (i % 3)}s`}
+                            repeatCount="indefinite"
+                          />
+                        )}
+                      </circle>
+                    ))}
+                    {/* Constellation */}
+                    <g
+                      transform={`translate(${W - sc(55)},${sc(10)})`}
+                      opacity="0.38"
+                    >
+                      {[
+                        [0, 0],
+                        [sc(8), sc(5)],
+                        [sc(16), sc(2)],
+                        [sc(14), sc(14)],
+                        [sc(4), sc(12)],
+                      ].map(([x, y], i) => (
+                        <circle
+                          key={i}
+                          cx={x}
+                          cy={y}
+                          r={sc(1.2)}
+                          fill="white"
+                        />
+                      ))}
+                      {[
+                        [0, 0, sc(8), sc(5)],
+                        [sc(8), sc(5), sc(16), sc(2)],
+                        [sc(8), sc(5), sc(14), sc(14)],
+                        [sc(8), sc(5), sc(4), sc(12)],
+                      ].map(([x1, y1, x2, y2], i) => (
+                        <line
+                          key={i}
+                          x1={x1}
+                          y1={y1}
+                          x2={x2}
+                          y2={y2}
+                          stroke="white"
+                          strokeWidth="0.4"
+                        />
+                      ))}
+                    </g>
+                    {/* Orbital rings */}
+                    <ellipse
+                      cx={W - QR_COL_W / 2}
+                      cy={H / 2}
+                      rx={sc(20)}
+                      ry={sc(16)}
+                      fill="none"
+                      stroke="rgba(100,148,255,0.1)"
+                      strokeWidth="0.5"
+                      strokeDasharray={`${sc(3)},${sc(5)}`}
+                    />
+                    <ellipse
+                      cx={W - QR_COL_W / 2}
+                      cy={H / 2}
+                      rx={sc(32)}
+                      ry={sc(24)}
+                      fill="none"
+                      stroke="rgba(100,148,255,0.06)"
+                      strokeWidth="0.5"
+                      strokeDasharray={`${sc(2)},${sc(6)}`}
+                    />
+                  </svg>
+                </>
+              )}
+
+              {/* ══════════════════════════════════════════════════════
+                  IVORY / BRONZE: brush strokes + scattered copper
+                  particles + flowing curve accents
+              ══════════════════════════════════════════════════════ */}
+              {s === "ivory" && (
+                <>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "60%",
+                      height: "55%",
+                      background:
+                        "radial-gradient(ellipse at 0% 0%, rgba(184,115,51,0.08) 0%, transparent 65%)",
+                      pointerEvents: "none",
+                      zIndex: 1,
+                    }}
+                  />
+                  <div style={{ ...brush("#B87333"), zIndex: 2 }} />
+                  {/* Copper particles */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  >
+                    {[
+                      [0.12, 0.6, sc(1.2)],
+                      [0.28, 0.35, sc(0.8)],
+                      [0.42, 0.78, sc(1)],
+                      [0.55, 0.22, sc(0.7)],
+                      [0.68, 0.6, sc(1)],
+                      [0.8, 0.38, sc(0.8)],
+                      [0.9, 0.7, sc(0.6)],
+                      [0.18, 0.9, sc(0.7)],
+                      [0.5, 0.92, sc(0.9)],
+                      [0.75, 0.85, sc(0.6)],
+                    ].map(([x, y, r], i) => (
+                      <circle
+                        key={i}
+                        cx={`${x * 100}%`}
+                        cy={`${y * 100}%`}
+                        r={r}
+                        fill="#B87333"
+                        opacity="0.28"
+                      />
+                    ))}
+                  </svg>
+                  {/* Flowing accent curves */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      bottom: sc(10),
+                      right: QR_COL_W + sc(5),
+                      width: sc(80),
+                      height: sc(40),
+                      pointerEvents: "none",
+                      zIndex: 3,
+                      opacity: 0.14,
+                    }}
+                  >
+                    <path
+                      d={`M0,${sc(30)} Q${sc(40)},${sc(10)} ${sc(80)},${sc(25)}`}
+                      stroke="#B87333"
+                      strokeWidth="0.8"
+                      fill="none"
+                    />
+                    <path
+                      d={`M0,${sc(38)} Q${sc(35)},${sc(20)} ${sc(80)},${sc(35)}`}
+                      stroke="#B87333"
+                      strokeWidth="0.5"
+                      fill="none"
+                    />
+                  </svg>
+                  {/* Accent bars + hairline */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: sc(14),
+                      bottom: sc(14),
+                      left: 0,
+                      width: `${sc(3)}px`,
+                      background:
+                        "linear-gradient(180deg, transparent, #B87333 25%, #B87333 75%, transparent)",
+                      opacity: 0.42,
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${sc(0.5)}px`,
+                      background:
+                        "linear-gradient(90deg, transparent 5%, rgba(184,115,51,0.45) 30%, rgba(210,140,70,0.9) 50%, rgba(184,115,51,0.45) 70%, transparent 95%)",
+                      pointerEvents: "none",
+                      zIndex: 4,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "linear-gradient(125deg, rgba(184,115,51,0.04) 0%, transparent 40%, rgba(184,115,51,0.03) 100%)",
+                      animation: "copperDrift 7s ease-in-out infinite",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  />
+                </>
+              )}
+
+              {/* ══════════════════════════════════════════════════════
+                  NEON / VOID: square grid + scan line + data
+                  particle stream + binary rain column accents
+              ══════════════════════════════════════════════════════ */}
+              {s === "neon" && (
+                <>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "65%",
+                      height: "65%",
+                      background:
+                        "radial-gradient(ellipse at 0% 0%, rgba(124,131,240,0.09) 0%, transparent 70%)",
+                      pointerEvents: "none",
+                      zIndex: 1,
+                    }}
+                  />
+                  <div style={{ ...sqGrid("#7C83F0"), zIndex: 2 }} />
+                  {/* Data particles */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  >
+                    {[
+                      [0.7, 0.2, sc(1)],
+                      [0.78, 0.45, sc(0.8)],
+                      [0.65, 0.68, sc(1.2)],
+                      [0.85, 0.7, sc(0.7)],
+                      [0.6, 0.15, sc(0.6)],
+                      [0.9, 0.5, sc(0.9)],
+                      [0.55, 0.82, sc(0.8)],
+                      [0.4, 0.15, sc(0.6)],
+                      [0.2, 0.7, sc(0.7)],
+                      [0.12, 0.5, sc(0.5)],
+                    ].map(([x, y, r], i) => (
+                      <rect
+                        key={i}
+                        x={`calc(${x * 100}% - ${r}px)`}
+                        y={`calc(${y * 100}% - ${r}px)`}
+                        width={r * 2}
+                        height={r * 2}
+                        fill="#7C83F0"
+                        opacity="0.25"
+                      />
+                    ))}
+                    {/* Vertical data stream lines */}
+                    {Array.from({ length: 6 }, (_, i) => (
+                      <line
+                        key={i}
+                        x1={`${12 + i * 14}%`}
+                        y1="0"
+                        x2={`${12 + i * 14}%`}
+                        y2="100%"
+                        stroke="#7C83F0"
+                        strokeWidth="0.3"
+                        opacity="0.06"
+                      />
+                    ))}
+                  </svg>
+                  {/* Corner brackets */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      bottom: sc(8),
+                      right: sc(8),
+                      pointerEvents: "none",
+                      zIndex: 3,
+                      opacity: 0.22,
+                    }}
+                  >
+                    <rect
+                      x="0"
+                      y="0"
+                      width={sc(20)}
+                      height={sc(20)}
+                      fill="none"
+                      stroke="#7C83F0"
+                      strokeWidth="0.5"
+                    />
+                    <rect
+                      x={sc(4)}
+                      y={sc(4)}
+                      width={sc(12)}
+                      height={sc(12)}
+                      fill="none"
+                      stroke="#7C83F0"
+                      strokeWidth="0.5"
+                    />
+                    <circle
+                      cx={sc(10)}
+                      cy={sc(10)}
+                      r={sc(2)}
+                      fill="none"
+                      stroke="#7C83F0"
+                      strokeWidth="0.5"
+                    />
+                  </svg>
+                  {/* Animated edge hairlines */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${sc(0.5)}px`,
+                      background:
+                        "linear-gradient(90deg, transparent 5%, rgba(124,131,240,0.55) 30%, rgba(124,131,240,1) 50%, rgba(124,131,240,0.55) 70%, transparent 95%)",
+                      animation: "neonEdge 4s ease-in-out infinite",
+                      pointerEvents: "none",
+                      zIndex: 4,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${sc(0.5)}px`,
+                      background:
+                        "linear-gradient(90deg, transparent 20%, rgba(124,131,240,0.3) 50%, transparent 80%)",
+                      pointerEvents: "none",
+                      zIndex: 4,
+                    }}
+                  />
+                </>
+              )}
+
+              {/* ══════════════════════════════════════════════════════
+                  CIRCUIT / ARCTIC: horizontal scan lines +
+                  ice crystal SVG shapes + corner brackets
+                  + aurora shimmer band
+              ══════════════════════════════════════════════════════ */}
+              {s === "circuit" && (
+                <>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 0,
+                      width: "60%",
+                      height: "55%",
+                      background:
+                        "radial-gradient(ellipse at 100% 0%, rgba(156,184,220,0.08) 0%, transparent 70%)",
+                      pointerEvents: "none",
+                      zIndex: 1,
+                    }}
+                  />
+                  <div style={{ ...hLine("#9CB8DC", 10), zIndex: 2 }} />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "linear-gradient(135deg, rgba(156,184,220,0.04) 0%, transparent 50%, rgba(60,100,160,0.05) 100%)",
+                      animation: "arcticGlow 7s ease-in-out infinite",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  />
+                  {/* Ice crystal / snowflake shapes */}
+                  <svg
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }}
+                  >
+                    {[
+                      [W * 0.72, H * 0.25, sc(10)],
+                      [W * 0.85, H * 0.65, sc(7)],
+                      [W * 0.25, H * 0.75, sc(6)],
+                      [W * 0.6, H * 0.85, sc(5)],
+                      [W * 0.12, H * 0.4, sc(4)],
+                    ].map(([cx, cy, r], i) => {
+                      const spokes = Array.from({ length: 6 }, (_, k) => {
+                        const a = (k * Math.PI) / 3;
+                        return `<line x1="${cx}" y1="${cy}" x2="${cx + r * Math.cos(a)}" y2="${cy + r * Math.sin(a)}" stroke="#9CB8DC" stroke-width="0.5" opacity="0.3"/>`;
+                      }).join("");
+                      return (
+                        <g
+                          key={i}
+                          dangerouslySetInnerHTML={{
+                            __html:
+                              spokes +
+                              `<circle cx="${cx}" cy="${cy}" r="${r * 0.18}" fill="#9CB8DC" opacity="0.4"/>`,
+                          }}
+                        />
+                      );
+                    })}
+                    {/* Scattered ice particles */}
+                    {[
+                      [0.15, 0.55, sc(0.8)],
+                      [0.32, 0.28, sc(0.6)],
+                      [0.48, 0.72, sc(1)],
+                      [0.62, 0.38, sc(0.7)],
+                      [0.88, 0.45, sc(0.8)],
+                      [0.2, 0.88, sc(0.6)],
+                      [0.78, 0.82, sc(0.7)],
+                    ].map(([x, y, r], i) => (
+                      <circle
+                        key={`p${i}`}
+                        cx={`${x * 100}%`}
+                        cy={`${y * 100}%`}
+                        r={r}
+                        fill="#9CB8DC"
+                        opacity="0.2"
+                      />
+                    ))}
+                  </svg>
+                  {/* Corner brackets */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: sc(8),
+                      right: QR_COL_W + sc(10),
+                      width: sc(10),
+                      height: sc(10),
+                      borderTop: `${sc(0.5)}px solid rgba(156,184,220,0.4)`,
+                      borderRight: `${sc(0.5)}px solid rgba(156,184,220,0.4)`,
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: sc(8),
+                      left: sc(8),
+                      width: sc(10),
+                      height: sc(10),
+                      borderBottom: `${sc(0.5)}px solid rgba(156,184,220,0.25)`,
+                      borderLeft: `${sc(0.5)}px solid rgba(156,184,220,0.25)`,
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }}
+                  />
+                  {/* Hairlines */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${sc(0.5)}px`,
+                      background:
+                        "linear-gradient(90deg, transparent 5%, rgba(156,184,220,0.4) 30%, rgba(200,220,255,0.85) 50%, rgba(156,184,220,0.4) 70%, transparent 95%)",
+                      pointerEvents: "none",
+                      zIndex: 4,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${sc(0.5)}px`,
+                      background: "rgba(156,184,220,0.15)",
+                      pointerEvents: "none",
+                      zIndex: 4,
+                    }}
+                  />
+                </>
+              )}
+
+              {/* ══ CONTENT: left text + divider + right QR ══ */}
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 10,
+                  padding: P,
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "row",
+                  boxSizing: "border-box",
+                  gap: sc(8),
+                  ...sm,
+                }}
+              >
+                {/* LEFT */}
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    minWidth: 0,
+                  }}
+                >
+                  {/* Org */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: sc(6),
+                      flexShrink: 0,
+                    }}
+                  >
+                    {card.org_logo_url ? (
+                      <img
+                        src={card.org_logo_url}
+                        alt=""
+                        style={{
+                          width: fs.icon,
+                          height: fs.icon,
+                          borderRadius: sc(4),
+                          objectFit: "cover",
+                          flexShrink: 0,
+                          filter:
+                            s === "obsidian" || s === "crimson" || s === "ivory"
+                              ? "sepia(1) saturate(1.5) brightness(0.8) hue-rotate(20deg)"
+                              : undefined,
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: fs.icon,
+                          height: fs.icon,
+                          borderRadius: sc(4),
+                          background: `${template.accent}14`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: sc(9),
+                          color: template.accent,
+                          border: `${sc(0.5)}px solid ${template.accent}28`,
+                          flexShrink: 0,
+                        }}
+                      >
+                        🎓
+                      </div>
+                    )}
+                    {/* FIX: org name now clips cleanly, no overflow into QR column */}
+                    <span
+                      style={{
+                        fontSize: fs.orgName,
+                        color: template.mutedColor,
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: `${sc(s === "obsidian" || s === "crimson" || s === "ivory" ? 3.5 : 2.2)}px`,
+                        fontFamily: template.font,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: `calc(100% - ${fs.icon}px - ${sc(6)}px)`,
+                      }}
+                    >
+                      {card.org_name || "Institution"}
+                    </span>
+                  </div>
+
+                  {/* Name + meta — flex:1 centres vertically */}
+                  <div
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <h2
+                      style={{
+                        fontSize: fs.name,
+                        fontWeight:
+                          s === "obsidian" || s === "crimson" || s === "ivory"
+                            ? 600
+                            : s === "circuit"
+                              ? 400
+                              : 700,
+                        margin: 0,
+                        marginBottom: sc(3),
+                        lineHeight: 1.15,
+                        color: template.textColor,
+                        fontFamily: template.font,
+                        letterSpacing: `${sc(s === "obsidian" || s === "crimson" || s === "ivory" ? 0.5 : s === "circuit" ? 1 : -0.3)}px`,
+                        fontStyle: s === "crimson" ? "italic" : "normal",
+                        textShadow:
+                          s === "obsidian"
+                            ? `0 ${sc(1)}px ${sc(3)}px rgba(0,0,0,0.9)`
+                            : s === "aurora"
+                              ? `0 0 ${sc(14)}px rgba(91,141,239,0.45),0 ${sc(1)}px ${sc(2)}px rgba(0,0,0,0.7)`
+                              : s === "deepspace"
+                                ? `0 0 ${sc(14)}px rgba(100,148,255,0.5),0 ${sc(1)}px ${sc(3)}px rgba(0,0,0,0.9)`
+                                : s === "neon"
+                                  ? `0 0 ${sc(12)}px rgba(124,131,240,0.45)`
+                                  : s === "solar"
+                                    ? `0 0 ${sc(12)}px rgba(0,200,150,0.35)`
+                                    : s === "circuit"
+                                      ? `0 0 ${sc(10)}px rgba(156,184,220,0.25)`
+                                      : `0 ${sc(1)}px ${sc(4)}px rgba(0,0,0,0.8)`,
+                      }}
+                    >
+                      {card.name || "Student Name"}
+                    </h2>
+                    <p
+                      style={{
+                        fontSize: fs.meta,
+                        color: template.accent,
+                        fontWeight: 400,
+                        margin: 0,
+                        fontFamily: template.monoFont,
+                        letterSpacing: `${sc(0.5)}px`,
+                      }}
+                    >
+                      {card.branch || "Department"} · {YEAR}
+                    </p>
+                    <div
+                      style={{
+                        width: sc(compact ? 70 : 90),
+                        height: `${sc(0.5)}px`,
+                        marginTop: sc(6),
+                        background: `linear-gradient(90deg, ${template.accent}CC, ${template.accent}18)`,
+                      }}
+                    />
+                    {tagline && (
+                      <p
+                        style={{
+                          fontSize: fs.tagline,
+                          color: template.mutedColor,
+                          margin: `${sc(6)}px 0 0`,
+                          fontFamily: template.monoFont,
+                          fontStyle:
+                            s === "crimson" || s === "ivory"
+                              ? "italic"
+                              : "normal",
+                          lineHeight: 1.55,
+                          letterSpacing: `${sc(0.2)}px`,
+                        }}
+                      >
+                        {tagline}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* CTA — FIX: alignSelf:'flex-start' + explicit padding keeps it left-anchored and text centred */}
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignSelf: "flex-start",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: `${sc(3)}px ${sc(10)}px`,
+                      border: `${sc(0.5)}px solid ${template.accent}44`,
+                      borderRadius: sc(
+                        s === "neon" || s === "solar" || s === "aurora"
+                          ? 3
+                          : 20,
+                      ),
+                      background: `${template.accent}08`,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: fs.cta,
+                        color: template.accent,
+                        fontFamily: template.monoFont,
+                        fontWeight: 400,
+                        letterSpacing: `${sc(s === "obsidian" ? 1.5 : 0.5)}px`,
+                        textTransform: s === "obsidian" ? "uppercase" : "none",
+                      }}
+                    >
+                      {s === "obsidian"
+                        ? "View Memories"
+                        : s === "aurora"
+                          ? "Access Vault →"
+                          : s === "crimson"
+                            ? "Open Memories"
+                            : s === "solar"
+                              ? "Decrypt →"
+                              : s === "deepspace"
+                                ? "Launch Portal →"
+                                : s === "ivory"
+                                  ? "Reveal Memories"
+                                  : s === "neon"
+                                    ? "RUN ./memories"
+                                    : "ghost.access →"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* DIVIDER */}
+                <div
+                  style={{
+                    width: `${sc(0.5)}px`,
+                    background: `linear-gradient(180deg, transparent 8%, ${sep} 30%, ${sep} 70%, transparent 92%)`,
+                    flexShrink: 0,
+                    alignSelf: "stretch",
+                  }}
+                />
+
+                {/* RIGHT: QR centred */}
+                <div
+                  style={{
+                    width: QR_COL_W,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: sc(5),
+                    flexShrink: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: QR_BOX,
+                      height: QR_BOX,
+                      borderRadius: sc(8),
+                      background: "#ffffff",
+                      boxShadow: `0 ${sc(2)}px ${sc(10)}px rgba(0,0,0,0.4),0 0 0 ${sc(0.5)}px rgba(0,0,0,0.12)`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                      padding: sc(4),
+                      boxSizing: "border-box",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {qrDataUrl ? (
+                      <img
+                        src={qrDataUrl}
+                        alt="QR"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          display: "block",
+                          imageRendering: "pixelated",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          background: "#f5f5f5",
+                        }}
+                      />
+                    )}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: sc(compact ? 5 : 5.5),
+                      color: template.mutedColor,
+                      fontFamily: template.monoFont,
+                      textTransform: "uppercase",
+                      letterSpacing: `${sc(0.8)}px`,
+                      textAlign: "center",
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    SCAN
+                  </span>
+                </div>
               </div>
             </div>
           )}
 
+          {/* ════════════════ BACK ════════════════ */}
+          {renderMode !== "front" && (
+            <div
+              className="pcard-face"
+              style={{
+                ...faceBase,
+                transform:
+                  renderMode === "full"
+                    ? "rotateY(180deg) translateZ(1px)"
+                    : "translateZ(0)",
+                backfaceVisibility:
+                  renderMode === "full" ? "hidden" : "visible",
+                WebkitBackfaceVisibility:
+                  renderMode === "full" ? "hidden" : ("visible" as any),
+                background:
+                  card.card_back_image_url || card.back_image_url
+                    ? `url(${card.card_back_image_url || card.back_image_url}) center/cover no-repeat`
+                    : cardBg(),
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 1,
+                  background:
+                    card.card_back_image_url || card.back_image_url
+                      ? "radial-gradient(circle, transparent 25%, rgba(0,0,0,0.5) 100%)"
+                      : "none",
+                }}
+              />
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 2,
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: P,
+                  textAlign: "center",
+                  ...sm,
+                }}
+              >
+                {!(card.card_back_image_url || card.back_image_url) && (
+                  <>
+                    <div
+                      style={{
+                        fontSize: sc(36),
+                        marginBottom: sc(8),
+                        opacity: 0.45,
+                      }}
+                    >
+                      📸
+                    </div>
+                    <p
+                      style={{
+                        color: "rgba(255,255,255,0.42)",
+                        fontSize: sc(11),
+                        fontWeight: 500,
+                        fontFamily: template.font,
+                        margin: 0,
+                      }}
+                    >
+                      Class Photo
+                    </p>
+                    <p
+                      style={{
+                        color: "rgba(255,255,255,0.25)",
+                        fontSize: sc(9),
+                        marginTop: sc(4),
+                        fontFamily: template.monoFont,
+                      }}
+                    >
+                      Uploaded by your admin
+                    </p>
+                  </>
+                )}
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: P,
+                    left: P,
+                    right: P,
+                    display: "flex",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: sc(7),
+                      color: template.mutedColor,
+                      fontFamily: template.monoFont,
+                      fontWeight: 500,
+                      letterSpacing: `${sc(0.5)}px`,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {card.org_name}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
       </div>
 
       {interactive && (
-        <button onClick={flip} style={{
-          padding: '8px 20px', borderRadius: 20,
-          border: '1px solid var(--color-border-default)',
-          background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)',
-          fontSize: 12, cursor: 'pointer', fontWeight: 500, transition: 'all 0.2s',
-        }}>
-          🔄 {isFlipped ? 'Show Front' : 'Flip Card'}
+        <button
+          onClick={flip}
+          style={{
+            padding: `${sc(7)}px ${sc(18)}px`,
+            borderRadius: sc(20),
+            border: "1px solid var(--color-border-default)",
+            background: "var(--color-bg-secondary)",
+            color: "var(--color-text-secondary)",
+            fontSize: 12,
+            cursor: "pointer",
+            fontWeight: 500,
+            transition: "all 0.2s",
+          }}
+        >
+          🔄 {isFlipped ? "Show Front" : "Flip Card"}
         </button>
       )}
     </div>
   );
+}
+
+/** Parse cx/cy/r/fill/opacity from a raw <circle> string (used for inline scatter dots) */
+function parseCircle(raw: string): React.SVGProps<SVGCircleElement> {
+  const get = (k: string) => raw.match(new RegExp(`${k}="([^"]+)"`))?.[1];
+  return {
+    cx: get("cx"),
+    cy: get("cy"),
+    r: get("r"),
+    fill: get("fill"),
+    opacity: get("opacity"),
+  };
 }
