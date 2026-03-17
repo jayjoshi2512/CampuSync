@@ -1,6 +1,15 @@
 // frontend/src/components/MemoryWall.tsx
 import { useState, useRef, useCallback } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Camera, Heart, Flame, Smile, Star, ThumbsUp } from 'lucide-react';
+
+const REACTION_KEYS = ['heart', 'flame', 'smile', 'star', 'thumbsup'];
+const REACTION_ICONS: Record<string, React.ReactNode> = {
+  heart: <Heart size={14} />,
+  flame: <Flame size={14} />,
+  smile: <Smile size={14} />,
+  star: <Star size={14} />,
+  thumbsup: <ThumbsUp size={14} />
+};
 import GlassCard from '@/components/GlassCard';
 import { useAuthStore } from '@/store/authStore';
 
@@ -10,6 +19,7 @@ interface Memory {
   cloudinary_url: string;
   thumbnail_url?: string;
   caption?: string;
+  album?: string;
   uploader?: { name: string; avatar_url?: string };
   reaction_counts?: Record<string, number>;
   viewer_reactions?: string[];
@@ -48,7 +58,7 @@ export default function MemoryWall({ memories, onReaction, onClickMemory, onDele
     observer.current.observe(node);
   }, [hasMore, onLoadMore]);
 
-  const emojis = ['❤️', '🔥', '😂', '😮', '😢'];
+  // Removed hardcoded emoji array
 
   const handleDelete = (e: React.MouseEvent, memoryId: number) => {
     e.stopPropagation();
@@ -60,7 +70,7 @@ export default function MemoryWall({ memories, onReaction, onClickMemory, onDele
   if (memories.length === 0 && !loading) {
     return (
       <GlassCard elevation={1} style={{ padding: 48, textAlign: 'center' }}>
-        <div style={{ fontSize: 56, marginBottom: 16, opacity: 0.4 }}>📸</div>
+        <Camera size={48} style={{ marginBottom: 16, opacity: 0.4, color: 'var(--color-text-muted)' }} />
         <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 8 }}>
           No memories yet
         </h3>
@@ -90,6 +100,14 @@ export default function MemoryWall({ memories, onReaction, onClickMemory, onDele
               ) : (
                 <video src={m.cloudinary_url} style={{ width: '100%', display: 'block' }} autoPlay muted loop playsInline controls preload="metadata" />
               )}
+              {/* Album Badge */}
+              <div style={{ 
+                position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.6)', 
+                backdropFilter: 'blur(4px)', color: '#fff', fontSize: 10, fontWeight: 600, 
+                padding: '4px 8px', borderRadius: 12, letterSpacing: 0.5 
+              }}>
+                {m.album || 'General'} Album
+              </div>
               {/* Admin delete button */}
               {isAdmin && onDeleteMemory && (
                 <button onClick={(e) => handleDelete(e, m.id)}
@@ -127,19 +145,20 @@ export default function MemoryWall({ memories, onReaction, onClickMemory, onDele
               </div>
               {m.caption && <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.4 }}>{m.caption}</p>}
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {emojis.map((emoji) => (
-                  <button key={emoji}
-                    onClick={(e) => { e.stopPropagation(); onReaction?.(m.id, emoji); }}
+                {REACTION_KEYS.map((rKey) => (
+                  <button key={rKey}
+                    onClick={(e) => { e.stopPropagation(); onReaction?.(m.id, rKey); }}
                     style={{
                       padding: '3px 8px', borderRadius: 12, fontSize: 12,
                       border: '1px solid var(--color-border-subtle)',
-                      background: m.viewer_reactions?.includes(emoji) ? 'var(--color-brand-muted)' : 'transparent',
+                      background: m.viewer_reactions?.includes(rKey) ? 'var(--color-brand-muted)' : 'transparent',
                       cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3,
                       transition: 'all 0.15s',
+                      color: m.viewer_reactions?.includes(rKey) ? 'var(--color-brand)' : 'var(--color-text-muted)'
                     }}>
-                    {emoji}
-                    {m.reaction_counts?.[emoji] ? (
-                      <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600 }}>{m.reaction_counts[emoji]}</span>
+                    {REACTION_ICONS[rKey]}
+                    {m.reaction_counts?.[rKey] ? (
+                      <span style={{ fontSize: 10, color: 'var(--color-text-primary)', fontWeight: 600 }}>{m.reaction_counts[rKey]}</span>
                     ) : null}
                   </button>
                 ))}

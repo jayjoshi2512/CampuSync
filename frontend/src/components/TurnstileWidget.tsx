@@ -1,5 +1,6 @@
 // frontend/src/components/TurnstileWidget.tsx
 import { useEffect, useRef } from 'react';
+import { CheckCircle } from 'lucide-react';
 
 interface TurnstileWidgetProps {
   siteKey?: string;
@@ -60,7 +61,7 @@ export default function TurnstileWidget({ siteKey, onVerify }: TurnstileWidgetPr
         fontSize: 12, color: 'var(--color-accent-green)',
         display: 'flex', alignItems: 'center', gap: 8,
       }}>
-        ✅ Bot protection bypassed (dev mode)
+        <CheckCircle size={16} /> Bot protection bypassed (dev mode)
       </div>
     );
   }

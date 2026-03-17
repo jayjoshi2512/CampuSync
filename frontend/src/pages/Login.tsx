@@ -75,7 +75,7 @@ export default function Login() {
       setAuth('demo_admin_token_' + Date.now(), {
         id: 0, email: 'demo@admin.local', name: 'Demo Admin',
         role: 'admin' as const, org_role: 'owner' as const,
-        organization: { id: 1, name: 'BITS Pilani — Farewell 2025', slug: 'bits-pilani-2025', plan: 'growth', brand_color: '#7C7FFA', logo_url: undefined },
+        organization: { id: 1, name: 'BITS Pilani — Farewell 2025', slug: 'bits-pilani-2025', plan: 'growth', brand_color: '#10B981', logo_url: undefined },
       });
       toast('Demo mode — viewing Admin panel', 'info');
       navigate('/admin/dashboard');
@@ -83,7 +83,7 @@ export default function Login() {
       setAuth('demo_user_token_' + Date.now(), {
         id: 0, email: 'aarav@bits.ac.in', name: 'Aarav Patel',
         role: 'user' as const, roll_number: 'CS2022001', branch: 'Computer Science', batch_year: 2026,
-        organization: { id: 1, name: 'BITS Pilani — Farewell 2025', slug: 'bits-pilani-2025', plan: 'growth', brand_color: '#7C7FFA', logo_url: undefined },
+        organization: { id: 1, name: 'BITS Pilani — Farewell 2025', slug: 'bits-pilani-2025', plan: 'growth', brand_color: '#10B981', logo_url: undefined },
       });
       toast('Demo mode — viewing Student Portal', 'info');
       navigate('/portal');
@@ -105,14 +105,17 @@ export default function Login() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg-primary)', display: 'flex' }}>
+      {/* Responsive: inject hide styles for left panel on mobile */}
+      <style>{`@media(max-width:768px){.login-brand-panel{display:none !important;}.login-form-panel{flex:1 !important;}}`}</style>
+
       {/* Left: Brand panel */}
-      <div style={{
+      <div className="login-brand-panel" style={{
         flex: '0 0 420px', display: 'flex', flexDirection: 'column', justifyContent: 'center',
         padding: 48, position: 'relative', overflow: 'hidden',
         background: 'linear-gradient(145deg, var(--color-bg-secondary), var(--color-bg-primary))',
         borderRight: '1px solid var(--color-border-subtle)',
       }}>
-        <div style={{ position: 'absolute', top: -100, right: -100, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(124,127,250,0.06), transparent)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: -100, right: -100, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(16,185,129,0.06), transparent)', pointerEvents: 'none' }} />
 
         <button onClick={() => navigate('/')}
           style={{ position: 'absolute', top: 20, left: 20, background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -145,7 +148,7 @@ export default function Login() {
       </div>
 
       {/* Right: Login form */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+      <div className="login-form-panel" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
         <div style={{ width: '100%', maxWidth: 400 }}>
           {/* Tab Toggle */}
           <div style={{

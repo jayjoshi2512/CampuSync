@@ -10,9 +10,7 @@ const { logger } = require('../config/database');
  */
 async function getProfile(req, res) {
   try {
-    const user = await User.findByPk(req.actor.id, {
-      attributes: { exclude: ['password_hash'] },
-    });
+    const user = await User.findByPk(req.actor.id);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
@@ -22,7 +20,11 @@ async function getProfile(req, res) {
       attributes: ['id', 'name', 'slug', 'brand_color', 'brand_color_rgb', 'logo_url'],
     });
 
-    res.json({ user, organization: org });
+    const userData = user.toJSON();
+    const has_password = !!userData.password_hash;
+    delete userData.password_hash;
+
+    res.json({ user: userData, organization: org, has_password });
   } catch (err) {
     logger.error('getProfile error:', err.message);
     res.status(500).json({ error: 'Failed to load profile.' });
@@ -40,7 +42,7 @@ async function updateProfile(req, res) {
     }
 
     const updates = {};
-    const allowedFields = ['name', 'bio', 'linkedin_url', 'instagram_url'];
+    const allowedFields = ['name', 'bio', 'linkedin_url', 'instagram_url', 'github_url', 'twitter_url', 'website_url'];
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
         updates[field] = req.body[field];

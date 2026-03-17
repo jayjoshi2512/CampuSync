@@ -7,6 +7,7 @@ import GlassCard from '@/components/GlassCard';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { useToast } from '@/components/ToastProvider';
 import OtpInput from '@/components/OtpInput';
+import { PartyPopper } from 'lucide-react';
 
 type Step = 'form' | 'verify_otp' | 'success';
 
@@ -215,7 +216,7 @@ export default function RegisterPage() {
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
               style={{ textAlign: 'center' }}
             >
-              <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
+              <div style={{ marginBottom: 16, color: 'var(--color-brand)', display: 'flex', justifyContent: 'center' }}><PartyPopper size={56} /></div>
               <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-accent-green)', marginBottom: 12 }}>
                 Application Submitted!
               </h2>

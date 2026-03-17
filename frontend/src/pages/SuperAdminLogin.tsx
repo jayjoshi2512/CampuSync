@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { useAuthStore } from '@/store/authStore';
 import { useToast } from '@/components/ToastProvider';
 import ThemeToggle from '@/components/ThemeToggle';
+import { KeyRound, Sparkles, ShieldCheck } from 'lucide-react';
 
 export default function SuperAdminLogin() {
   const [step, setStep] = useState<'init' | 'otp'>('init');
@@ -98,7 +99,7 @@ export default function SuperAdminLogin() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           marginBottom: 20, fontSize: 22,
         }}>
-          🛡️
+          <ShieldCheck size={22} color="#fff" />
         </div>
 
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 6 }}>
@@ -120,7 +121,7 @@ export default function SuperAdminLogin() {
                   justifyContent: 'center', gap: 8,
                 }}>
                 {loading ? <LoadingSpinner size="sm" /> : (
-                  <>🔑 Request Access Code</>
+                  <><KeyRound size={14} /> Request Access Code</>
                 )}
               </button>
 
@@ -132,7 +133,7 @@ export default function SuperAdminLogin() {
                   background: 'transparent', color: 'var(--color-text-muted)',
                   fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
                 }}>
-                🎮 Demo Login (Preview UI)
+                <Sparkles size={14} /> Demo Login (Preview UI)
               </button>
             </motion.div>
           )}

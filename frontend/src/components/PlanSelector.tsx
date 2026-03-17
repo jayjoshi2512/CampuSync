@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import GlassCard from '@/components/GlassCard';
 import { useToast } from '@/components/ToastProvider';
+import { Mail, ArrowUpRight, Check } from 'lucide-react';
 
 interface PlanSelectorProps {
   currentPlan?: string;
@@ -50,16 +51,22 @@ export default function PlanSelector({ currentPlan = 'trial', isDemo, onPlanChan
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240, 1fr))', gap: 16 }}>
-      {PLANS.map((plan) => (
-        <motion.div key={plan.key} whileHover={{ y: -4 }} transition={{ duration: 0.15 }}>
-          <GlassCard elevation={currentPlan === plan.key ? 2 : 1}
-            glow={currentPlan === plan.key}
-            style={{
-              padding: 24, height: '100%', display: 'flex', flexDirection: 'column',
-              borderLeft: `3px solid ${plan.color}`,
-              position: 'relative',
-            }}>
+    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '20px 0 60px' }}>
+      <div style={{ textAlign: 'center', marginBottom: 48 }}>
+        <h1 style={{ fontSize: 32, fontWeight: 800, fontFamily: 'var(--font-display)', marginBottom: 12, letterSpacing: -0.5 }}>Choose Your Plan</h1>
+        <p style={{ fontSize: 15, color: 'var(--color-text-muted)', maxWidth: 500, margin: '0 auto' }}>Upgrade to unlock advanced features, unlimited scans, and premium card designs for your institution.</p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
+        {PLANS.map((plan) => (
+          <motion.div key={plan.key} whileHover={{ y: -6 }} transition={{ duration: 0.2 }}>
+            <GlassCard elevation={currentPlan === plan.key ? 2 : 1}
+              glow={currentPlan === plan.key || plan.popular}
+              style={{
+                padding: '32px 28px', height: '100%', display: 'flex', flexDirection: 'column',
+                borderTop: `4px solid ${plan.color}`,
+                position: 'relative',
+              }}>
             {plan.popular && (
               <span style={{
                 position: 'absolute', top: 12, right: 12,
@@ -87,10 +94,13 @@ export default function PlanSelector({ currentPlan = 'trial', isDemo, onPlanChan
             {plan.priceNum > 0 && <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 16 }}>per month</p>}
             {plan.priceNum === 0 && <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 16 }}>contact us</p>}
 
-            <div style={{ flex: 1, marginBottom: 16 }}>
+            <div style={{ flex: 1, marginBottom: 24 }}>
               {plan.features.map((f, i) => (
-                <p key={i} style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: plan.color, fontSize: 12 }}>✓</span> {f}
+                <p key={i} style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', background: `${plan.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Check size={10} color={plan.color} strokeWidth={3} />
+                  </div>
+                  {f}
                 </p>
               ))}
             </div>
@@ -105,11 +115,14 @@ export default function PlanSelector({ currentPlan = 'trial', isDemo, onPlanChan
                 cursor: currentPlan === plan.key ? 'default' : 'pointer',
                 opacity: upgrading === plan.key ? 0.6 : 1,
               }}>
-              {currentPlan === plan.key ? 'Current Plan' : plan.key === 'enterprise' ? '📧 Contact Us' : `⬆️ Upgrade to ${plan.name}`}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                {currentPlan === plan.key ? 'Current Plan' : plan.key === 'enterprise' ? <><Mail size={16} /> Contact Us</> : <><ArrowUpRight size={16} /> Upgrade to {plan.name}</>}
+              </div>
             </button>
           </GlassCard>
         </motion.div>
       ))}
+      </div>
     </div>
   );
 }

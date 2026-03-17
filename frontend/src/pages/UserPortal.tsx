@@ -9,6 +9,10 @@ import MemoryWall from "@/components/MemoryWall";
 import MemoryUploader from "@/components/MemoryUploader";
 import MemoryLightbox from "@/components/MemoryLightbox";
 import NotificationBell from "@/components/NotificationBell";
+import Directory from "@/components/Directory";
+import EventsTab from "@/components/EventsTab";
+import JobsTab from "@/components/JobsTab";
+import MentorsTab from "@/components/MentorsTab";
 import OrgThemeProvider from "@/components/OrgThemeProvider";
 import { useAuthStore } from "@/store/authStore";
 import { useMemories } from "@/hooks/useMemories";
@@ -29,7 +33,13 @@ import {
   FileImage,
   FileType2,
   FileText,
+  Users,
+  Calendar,
+  Briefcase,
+  HeartHandshake,
+  Edit2
 } from "lucide-react";
+import InlineEditField from '@/components/InlineEditField';
 
 const CARD_BASE_W = 360;
 const CARD_BASE_H = Math.round(CARD_BASE_W / 1.5852);
@@ -39,6 +49,10 @@ const EXPORT_SCALE = 3;
 const TABS = [
   { key: "card", label: "My Card", icon: CreditCard },
   { key: "memories", label: "Memories", icon: Image },
+  { key: "directory", label: "Directory", icon: Users },
+  { key: "events", label: "Events", icon: Calendar },
+  { key: "jobs", label: "Jobs", icon: Briefcase },
+  { key: "mentors", label: "Mentorship", icon: HeartHandshake },
   { key: "profile", label: "Profile", icon: User },
 ];
 
@@ -535,7 +549,7 @@ function DownloadModal({
       }
 
       setStatus("done");
-      toast(`Downloaded as ${format.toUpperCase()}! ✨`, "success");
+      toast(`Downloaded as ${format.toUpperCase()}!`, "success");
       setTimeout(onClose, 1500);
     } catch (err) {
       console.error("Export error:", err);
@@ -1062,7 +1076,19 @@ function MiniCardPreview({
             fontSize: 6,
           }}
         >
-          🎓
+          <svg viewBox="0 0 16 16" width="7" height="7" fill="none" stroke={tmpl.accent} strokeWidth="1.2" strokeLinecap="round">
+            <path d="M8 1L14 4V7C14 11 11 14 8 15C5 14 2 11 2 7V4L8 1Z" />
+          </svg>
+        </div>
+        {/* Org name */}
+        <div style={{
+          position: 'absolute', top: 5, left: 18, fontSize: 4.5,
+          color: tmpl.accent, fontFamily: tmpl.monoFont,
+          letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.8,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          maxWidth: W - 28,
+        }}>
+          {card.org_name || 'ORG'}
         </div>
         {/* Name */}
         <div style={{ position: "absolute", bottom: 18, left: 6, right: 22 }}>
@@ -1115,10 +1141,11 @@ function MiniCardPreview({
         <div
           style={{
             position: "absolute",
-            bottom: 5,
+            top: "50%",
             right: 5,
-            width: 16,
-            height: 16,
+            transform: "translateY(-50%)",
+            width: 18,
+            height: 18,
             borderRadius: 2,
             background: "#fff",
             padding: 2,
@@ -1148,6 +1175,7 @@ function MiniCardPreview({
             ))}
           </div>
         </div>
+        {/* Removed CTA button placeholder as requested by user */}
         {/* Active indicator dot */}
         {active && (
           <div
@@ -1185,15 +1213,29 @@ function MiniCardPreview({
   );
 }
 
+function calculateProfileScore(actor: any): number {
+  if (!actor) return 0;
+  let score = 40; // Base score for having an account
+  if (actor.avatar_url) score += 15;
+  if (actor.roll_number) score += 10;
+  if (actor.branch) score += 10;
+  if (actor.linkedin_url) score += 15;
+  if (actor.bio) score += 10;
+  // Make sure it maxes at 100
+  return Math.min(100, Math.max(0, score));
+}
+
 // ── UserPortal ────────────────────────────────────────────────────────────────
 export default function UserPortal() {
-  const [tab, setTab] = useState("card");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "card";
+  const [tab, setTab] = useState(initialTab);
   const [showUploader, setShowUploader] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [showDownload, setShowDownload] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [localTemplateId, setLocalTemplateId] = useState<string | null>(null);
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const actor = useAuthStore((s) => s.actor);
@@ -1340,7 +1382,7 @@ export default function UserPortal() {
         {/* ─── Sidebar ─── */}
         <aside
           style={{
-            width: 220,
+            width: 240,
             flexShrink: 0,
             background: "var(--color-bg-secondary)",
             borderRight: "1px solid var(--color-border-subtle)",
@@ -1364,7 +1406,7 @@ export default function UserPortal() {
                   height: 34,
                   borderRadius: "50%",
                   background:
-                    "linear-gradient(135deg, var(--color-brand), #A78BFA)",
+                    "linear-gradient(135deg, var(--color-brand), #059669)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -1420,19 +1462,35 @@ export default function UserPortal() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                marginTop: 10,
+                justifyContent: "space-between",
+                marginTop: 14,
               }}
             >
-              <ThemeToggle />
-              <NotificationBell />
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <ThemeToggle />
+                <NotificationBell />
+              </div>
+            </div>
+            
+            {/* Gamification Widget: Profile Completeness */}
+            <div style={{ marginTop: 16, background: 'var(--color-bg-tertiary)', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--color-border-default)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Profile Score</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-brand)' }}>{calculateProfileScore(actor)}%</span>
+              </div>
+              <div style={{ width: '100%', height: 4, background: 'var(--color-border-subtle)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: `${calculateProfileScore(actor)}%`, height: '100%', background: 'linear-gradient(90deg, var(--color-brand), #10B981)', borderRadius: 2, transition: 'width 0.5s ease-out' }} />
+              </div>
+              <p style={{ fontSize: 10, color: 'var(--color-text-muted)', margin: '6px 0 0', lineHeight: 1.3 }}>
+                {calculateProfileScore(actor) === 100 ? 'All-star profile!' : 'Add social links & bio to boost score.'}
+              </p>
             </div>
           </div>
 
           <nav
             style={{
               flex: 1,
-              padding: "10px 8px",
+              padding: "12px 8px",
               display: "flex",
               flexDirection: "column",
               gap: 2,
@@ -1447,8 +1505,8 @@ export default function UserPortal() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 9,
-                    padding: "9px 11px",
+                    gap: 10,
+                    padding: "10px 12px",
                     borderRadius: 8,
                     border: "none",
                     cursor: "pointer",
@@ -1758,17 +1816,7 @@ export default function UserPortal() {
           {/* ── MEMORIES ── */}
           {tab === "memories" && (
             <div style={{ padding: "28px 36px" }}>
-              <h1
-                style={{
-                  fontSize: 22,
-                  fontWeight: 800,
-                  margin: "0 0 24px",
-                  letterSpacing: -0.5,
-                  fontFamily: "var(--font-display)",
-                }}
-              >
-                Memories
-              </h1>
+              {/* Removed Memories Heading */}
               <MemoryWall
                 memories={memories}
                 loading={loading}
@@ -1780,20 +1828,14 @@ export default function UserPortal() {
             </div>
           )}
 
+          {tab === "directory" && <Directory />}
+          {tab === "events" && <EventsTab />}
+          {tab === "jobs" && <JobsTab />}
+          {tab === "mentors" && <MentorsTab />}
+
           {/* ── PROFILE ── */}
           {tab === "profile" && (
             <div style={{ padding: "28px 36px" }}>
-              <h1
-                style={{
-                  fontSize: 22,
-                  fontWeight: 800,
-                  margin: "0 0 24px",
-                  letterSpacing: -0.5,
-                  fontFamily: "var(--font-display)",
-                }}
-              >
-                Profile
-              </h1>
               <div style={{ maxWidth: 540 }}>
                 <div
                   style={{
@@ -1818,7 +1860,7 @@ export default function UserPortal() {
                         height: 52,
                         borderRadius: "50%",
                         background:
-                          "linear-gradient(135deg, var(--color-brand), #A78BFA)",
+                          "linear-gradient(135deg, var(--color-brand), #059669)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -1840,7 +1882,7 @@ export default function UserPortal() {
                           margin: "2px 0 0",
                         }}
                       >
-                        {actor?.organization?.name || "Organization"}
+                        {actor?.organization?.name || "Organization"} {actor?.role === 'alumni' ? '· Alumni' : ''}
                       </p>
                     </div>
                   </div>
@@ -1873,7 +1915,7 @@ export default function UserPortal() {
                     >
                       <span>{actor?.email || ""}</span>
                       <span style={{ fontSize: 10, opacity: 0.55 }}>
-                        🔒 Read-only
+                        Read-only
                       </span>
                     </div>
                   </div>
@@ -1889,7 +1931,7 @@ export default function UserPortal() {
                         label: "Roll Number",
                         value: actor?.roll_number || "—",
                       },
-                      { label: "Branch", value: actor?.branch || "—" },
+                      { label: "Branch / Dept", value: actor?.branch || "—" },
                       { label: "Batch Year", value: actor?.batch_year || "—" },
                       {
                         label: "Institution",
@@ -1924,6 +1966,58 @@ export default function UserPortal() {
                     ))}
                   </div>
                 </div>
+
+                {/* Inline Bio */}
+                <div
+                  style={{
+                    padding: "16px 18px",
+                    borderRadius: 14,
+                    background: "var(--color-bg-secondary)",
+                    border: "1px solid var(--color-border-subtle)",
+                    marginBottom: 14,
+                  }}
+                >
+                  <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--color-text-muted)', margin: '0 0 8px' }}>Bio</p>
+                  <InlineEditField
+                    fieldKey="bio"
+                    currentValue={actor?.bio || ''}
+                    placeholder="Write a short bio..."
+                    isTextarea
+                  />
+                </div>
+
+                {/* Inline Social Links */}
+                <div
+                  style={{
+                    padding: "16px 18px",
+                    borderRadius: 14,
+                    background: "var(--color-bg-secondary)",
+                    border: "1px solid var(--color-border-subtle)",
+                    marginBottom: 14,
+                  }}
+                >
+                  <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>Social Links</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {[
+                      { key: 'linkedin_url', label: 'LinkedIn', placeholder: 'https://linkedin.com/in/...' },
+                      { key: 'github_url', label: 'GitHub', placeholder: 'https://github.com/...' },
+                      { key: 'twitter_url', label: 'Twitter / X', placeholder: 'https://x.com/...' },
+                      { key: 'instagram_url', label: 'Instagram', placeholder: 'https://instagram.com/...' },
+                      { key: 'website_url', label: 'Website', placeholder: 'https://yoursite.com' },
+                    ].map(s => (
+                      <InlineEditField
+                        key={s.key}
+                        fieldKey={s.key}
+                        currentValue={(actor as any)?.[s.key] || ''}
+                        placeholder={s.placeholder}
+                        label={s.label}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Setup Password — only shown if user has NOT set a password yet */}
+                {!actor?.has_password && (
                 <div
                   style={{
                     padding: "16px 18px",
@@ -1935,7 +2029,7 @@ export default function UserPortal() {
                   <p
                     style={{ fontSize: 13, fontWeight: 600, margin: "0 0 4px" }}
                   >
-                    Password
+                    Setup Password
                   </p>
                   <p
                     style={{
@@ -1973,6 +2067,7 @@ export default function UserPortal() {
                     Request Setup Link
                   </button>
                 </div>
+                )}
               </div>
             </div>
           )}

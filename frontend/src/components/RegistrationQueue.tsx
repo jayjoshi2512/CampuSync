@@ -5,6 +5,7 @@ import GlassCard from '@/components/GlassCard';
 import api from '@/utils/api';
 import { useToast } from '@/components/ToastProvider';
 import { useAuthStore } from '@/store/authStore';
+import { Clock, CheckCircle, XCircle } from 'lucide-react';
 
 interface Registration {
   id: number;
@@ -105,7 +106,7 @@ export default function RegistrationQueue() {
               color: tab === t ? '#fff' : 'var(--color-text-muted)',
               fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6,
             }}>
-            {t === 'pending' ? '⏳' : t === 'approved' ? '✅' : '❌'} {t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'pending' ? <Clock size={12} /> : t === 'approved' ? <CheckCircle size={12} /> : <XCircle size={12} />} {t.charAt(0).toUpperCase() + t.slice(1)}
             <span style={{
               background: tab === t ? 'rgba(255,255,255,0.2)' : 'var(--color-border-default)',
               padding: '1px 6px', borderRadius: 10, fontSize: 11,
@@ -157,11 +158,11 @@ export default function RegistrationQueue() {
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                   <button onClick={() => approve(r.id)}
                     style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: 'var(--color-accent-green)', color: '#0D1117', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    ✅ Approve
+                    Approve
                   </button>
                   <button onClick={() => setRejectModal(r.id)}
                     style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: 'var(--color-accent-red)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    ❌ Reject
+                    Reject
                   </button>
                 </div>
               )}
@@ -178,7 +179,7 @@ export default function RegistrationQueue() {
             onClick={(e) => { if (e.target === e.currentTarget) setRejectModal(null); }}>
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }}
               style={{ background: 'var(--color-bg-secondary)', borderRadius: 16, border: '1px solid var(--color-border-default)', maxWidth: 440, width: '100%', padding: 28 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>❌ Reject Registration</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>Reject Registration</h3>
               <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Reason for rejection (min 20 characters)..." rows={3}
                 style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-border-default)', background: 'var(--color-bg-tertiary)', color: 'var(--color-text-primary)', fontSize: 13, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>

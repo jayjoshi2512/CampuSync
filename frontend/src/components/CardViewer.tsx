@@ -1,6 +1,7 @@
 // frontend/src/components/CardViewer.tsx
 // Required: npm install qrcode @types/qrcode
 import { useState, useRef, useCallback, useEffect } from "react";
+import { Eye, Smartphone, Download, Share2, CornerUpRight, GraduationCap } from "lucide-react";
 import { motion, useSpring, useMotionValue, useTransform } from "framer-motion";
 import QRCodeLib from "qrcode";
 
@@ -123,7 +124,6 @@ interface CardViewerProps {
   displayScale?: number;
 }
 
-/** CSS background-image data URI — html2canvas-safe (no url(#id) refs) */
 const svgBg = (
   svgContent: string,
   w: number,
@@ -151,14 +151,12 @@ export default function CardViewer({
   const template = TEMPLATES[templateId] || TEMPLATES.tmpl_obsidian;
   const s = template.style;
   const sc = (n: number) => Math.round(n * displayScale);
-
-  // Export mode: renderMode !== 'full' — hide shadow to remove the dark border artifact
   const isExport = renderMode !== "full";
 
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   useEffect(() => {
     const qrValue = card.qr_hash
-      ? `${window.location.origin}/api/user/qr-login/${card.qr_hash}`
+      ? `${window.location.origin}/qr/${card.qr_hash}`
       : `${window.location.origin}/portal?user=${encodeURIComponent(card.name || "")}`;
     QRCodeLib.toDataURL(qrValue, {
       width: 256,
@@ -204,10 +202,12 @@ export default function CardViewer({
     (e: React.MouseEvent) => {
       if (!containerRef.current || isDragging || !interactive) return;
       const rect = containerRef.current.getBoundingClientRect();
-      mouseX.set((e.clientX - rect.left) / rect.width);
-      mouseY.set((e.clientY - rect.top) / rect.height);
-      rotateY.set(((e.clientX - rect.left) / rect.width - 0.5) * 16);
-      rotateX.set((0.5 - (e.clientY - rect.top) / rect.height) * 9);
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      mouseX.set(x);
+      mouseY.set(y);
+      rotateY.set((x - 0.5) * 16);
+      rotateX.set((0.5 - y) * 9);
     },
     [isDragging, interactive, mouseX, mouseY, rotateX, rotateY],
   );
@@ -225,13 +225,8 @@ export default function CardViewer({
   };
   const handleDragMove = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDragging || !interactive) return;
-    rotateY.set(
-      (isFlipped ? 180 : 0) +
-        ("touches" in e
-          ? e.touches[0].clientX
-          : e.clientX - dragStartX.current) *
-          0.5,
-    );
+    const cx = "touches" in e ? e.touches[0].clientX : e.clientX;
+    rotateY.set((isFlipped ? 180 : 0) + (cx - dragStartX.current) * 0.5);
   };
   const handleDragEnd = () => {
     if (!isDragging) return;
@@ -252,10 +247,19 @@ export default function CardViewer({
   const BASE_W = compact ? 280 : 360;
   const BASE_H = Math.round(BASE_W / 1.5852);
   const W = sc(BASE_W),
-    H = sc(BASE_H),
-    P = sc(compact ? 13 : 15);
+    H = sc(BASE_H);
   const YEAR = card.batch_year || 2026;
   const INITIAL = card.name?.[0]?.toUpperCase() || "?";
+
+  // ── Padding system ────────────────────────────────────────────────────────
+  // BR  = border-radius
+  // PT  = top padding = BR + gap  →  org row clears rounded corner clip
+  // PB  = bottom padding — generous so CTA always stays inside
+  // PH  = horizontal padding
+  const BR = sc(compact ? 12 : 16);
+  const PH = sc(compact ? 13 : 15);
+  const PT = BR + sc(compact ? 8 : 10);
+  const PB = sc(compact ? 16 : 20);
 
   const tagline =
     card.tagline ||
@@ -294,7 +298,6 @@ export default function CardViewer({
   };
 
   const cardShadow = (): string => {
-    // ── FIX: no shadow in export mode — removes dark border artifact ──
     if (isExport) return "none";
     const r = (n: number) => `${Math.round(n * displayScale)}px`;
     if (s === "obsidian")
@@ -322,7 +325,7 @@ export default function CardViewer({
     height: "100%",
     backfaceVisibility: "hidden",
     WebkitBackfaceVisibility: "hidden",
-    borderRadius: sc(compact ? 12 : 16),
+    borderRadius: BR,
     overflow: "hidden",
     background: cardBg(),
     boxShadow: cardShadow(),
@@ -337,6 +340,7 @@ export default function CardViewer({
     MozOsxFontSmoothing: "grayscale" as any,
     textRendering: "optimizeLegibility" as any,
   };
+
   const fs = {
     orgName: sc(compact ? 6 : 7),
     name: sc(compact ? 14 : 19),
@@ -345,6 +349,7 @@ export default function CardViewer({
     cta: sc(compact ? 5.5 : 6.5),
     icon: sc(20),
   };
+
   const sep =
     s === "obsidian"
       ? "rgba(200,168,76,0.15)"
@@ -422,23 +427,52 @@ export default function CardViewer({
     );
   };
 
-  // ── Scattered particle dots — generated from seed, no defs ──
-  const scatterDots = (
-    count: number,
-    col: string,
-    opacity: number,
-    rMin: number,
-    rMax: number,
-    seed = 1,
-  ) => {
-    const dots = Array.from({ length: count }, (_, i) => {
-      const x = ((i * 137.508 * seed + i * i * 0.7) % 97) + 1.5;
-      const y = ((i * 89.37 * seed + i * i * 0.4) % 93) + 3;
-      const r = rMin + ((i % 5) * (rMax - rMin)) / 4;
-      return `<circle cx="${x}%" cy="${y}%" r="${sc(r)}" fill="${col}" opacity="${opacity + (i % 3) * 0.08}"/>`;
-    }).join("");
-    return dots;
-  };
+  // ── Watermark helper — flex centering is html2canvas-safe ──────────────────
+  // NEVER use CSS transform:translate(-50%,-50%) for centering in export context.
+  // html2canvas ignores CSS transform on positioned elements, causing the element
+  // to render at (50%, 50%) offset instead of centered → clips against overflow:hidden.
+  // Solution: wrap in a position:absolute full-bleed flex container.
+  const Watermark = ({
+    children,
+    fontSize,
+    color,
+    fontFamily,
+  }: {
+    children: React.ReactNode;
+    fontSize: number;
+    color: string;
+    fontFamily: string;
+  }) => (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: W,
+        height: H,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        pointerEvents: "none",
+        zIndex: 0,
+        overflow: "hidden",
+      }}
+    >
+      <span
+        style={{
+          fontSize,
+          fontWeight: 300,
+          color,
+          fontFamily,
+          lineHeight: 1,
+          userSelect: "none",
+          pointerEvents: "none",
+        }}
+      >
+        {children}
+      </span>
+    </div>
+  );
 
   return (
     <div
@@ -460,7 +494,6 @@ export default function CardViewer({
         .pcard-face * { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; font-optical-sizing:auto; }
       `}</style>
 
-      {/* Outer perspective container — exact card pixel dimensions, no extra padding */}
       <div
         ref={containerRef}
         onMouseMove={handleMouseMove}
@@ -489,7 +522,7 @@ export default function CardViewer({
             rotateX: renderMode === "full" ? rotateX : 0,
           }}
         >
-          {/* ════════════════ FRONT ════════════════ */}
+          {/* ═══════════════════ FRONT FACE ═══════════════════ */}
           {renderMode !== "back" && (
             <div
               className="pcard-face"
@@ -503,7 +536,6 @@ export default function CardViewer({
                   renderMode === "full" ? "hidden" : ("visible" as any),
               }}
             >
-              {/* Shimmer — interactive only, not in export */}
               {!isExport && (
                 <motion.div
                   style={{
@@ -517,10 +549,7 @@ export default function CardViewer({
                 />
               )}
 
-              {/* ══════════════════════════════════════════════════════
-                  OBSIDIAN: diamond lattice + golden corner ornaments
-                  + scattered gold dust particles
-              ══════════════════════════════════════════════════════ */}
+              {/* ── OBSIDIAN ── */}
               {s === "obsidian" && (
                 <>
                   <div style={{ ...diaPat(), zIndex: 1 }} />
@@ -537,36 +566,52 @@ export default function CardViewer({
                       zIndex: 2,
                     }}
                   />
-                  {/* Scattered gold dust particles */}
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
                       zIndex: 2,
                     }}
                   >
-                    {scatterDots(28, "#C8A84C", 0.18, 0.5, 1.2, 3)
-                      .split("/>")
-                      .filter(Boolean)
-                      .map((d, i) => (
-                        <circle key={i} {...parseCircle(d)} />
-                      ))}
+                    {[
+                      [0.08, 0.55, sc(0.9)],
+                      [0.2, 0.3, sc(0.6)],
+                      [0.35, 0.72, sc(1.1)],
+                      [0.48, 0.18, sc(0.7)],
+                      [0.62, 0.65, sc(0.9)],
+                      [0.75, 0.4, sc(0.65)],
+                      [0.85, 0.75, sc(0.8)],
+                      [0.14, 0.88, sc(0.55)],
+                      [0.44, 0.9, sc(0.7)],
+                      [0.68, 0.12, sc(0.6)],
+                      [0.92, 0.55, sc(0.7)],
+                      [0.3, 0.45, sc(0.5)],
+                    ].map(([x, y, r], i) => (
+                      <circle
+                        key={i}
+                        cx={`${x * 100}%`}
+                        cy={`${y * 100}%`}
+                        r={r}
+                        fill="#C8A84C"
+                        opacity="0.18"
+                      />
+                    ))}
                   </svg>
-                  {/* Corner ornaments — picture frame lines */}
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
                       zIndex: 3,
                     }}
                   >
-                    {/* Top-left */}
                     <line
                       x1={sc(8)}
                       y1={sc(8)}
@@ -585,7 +630,6 @@ export default function CardViewer({
                       strokeWidth="0.7"
                       opacity="0.5"
                     />
-                    {/* Top-right */}
                     <line
                       x1={W - sc(8)}
                       y1={sc(8)}
@@ -604,7 +648,6 @@ export default function CardViewer({
                       strokeWidth="0.7"
                       opacity="0.5"
                     />
-                    {/* Bottom-left */}
                     <line
                       x1={sc(8)}
                       y1={H - sc(8)}
@@ -623,7 +666,6 @@ export default function CardViewer({
                       strokeWidth="0.7"
                       opacity="0.35"
                     />
-                    {/* Bottom-right */}
                     <line
                       x1={W - sc(8)}
                       y1={H - sc(8)}
@@ -642,7 +684,6 @@ export default function CardViewer({
                       strokeWidth="0.7"
                       opacity="0.35"
                     />
-                    {/* Centre diamond accent */}
                     <circle
                       cx={W / 2}
                       cy={H / 2}
@@ -662,7 +703,6 @@ export default function CardViewer({
                       opacity="0.12"
                     />
                   </svg>
-                  {/* Hairlines */}
                   <div
                     style={{
                       position: "absolute",
@@ -703,11 +743,13 @@ export default function CardViewer({
                       zIndex: 3,
                     }}
                   />
-                  {/* Animated shimmer layer */}
                   <div
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       background:
                         "linear-gradient(125deg, rgba(200,168,76,0.03) 0%, transparent 40%, rgba(200,168,76,0.05) 100%)",
                       animation: "goldShimmer 5s ease-in-out infinite",
@@ -718,17 +760,17 @@ export default function CardViewer({
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════
-                  AURORA: pinstripes + network nodes + scattered
-                  hexagon rings + diagonal light sweep
-              ══════════════════════════════════════════════════════ */}
+              {/* ── AURORA ── */}
               {s === "aurora" && (
                 <>
                   <div style={{ ...hLine("#5B8DEF", 8), zIndex: 1 }} />
                   <div
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       background:
                         "linear-gradient(128deg, rgba(91,141,239,0.12) 0%, transparent 48%, rgba(15,55,160,0.06) 100%)",
                       animation: "auroraShimmer 8s ease-in-out infinite",
@@ -749,7 +791,6 @@ export default function CardViewer({
                       zIndex: 2,
                     }}
                   />
-                  {/* Network nodes */}
                   <svg
                     style={{
                       position: "absolute",
@@ -802,11 +843,11 @@ export default function CardViewer({
                       />
                     ))}
                   </svg>
-                  {/* Hexagon rings scattered */}
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
@@ -836,11 +877,11 @@ export default function CardViewer({
                       );
                     })}
                   </svg>
-                  {/* Scattered dots */}
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
@@ -867,7 +908,6 @@ export default function CardViewer({
                       />
                     ))}
                   </svg>
-                  {/* Hairlines */}
                   <div
                     style={{
                       position: "absolute",
@@ -884,16 +924,16 @@ export default function CardViewer({
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════
-                  CRIMSON: cross-hatch + scattered gold specks
-                  + monogram watermark + vine/leaf SVG bottom-right
-              ══════════════════════════════════════════════════════ */}
+              {/* ── CRIMSON ── */}
               {s === "crimson" && (
                 <>
                   <div
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       background:
                         "radial-gradient(ellipse at 35% 0%, rgba(120,40,0,0.15) 0%, transparent 60%)",
                       pointerEvents: "none",
@@ -901,30 +941,19 @@ export default function CardViewer({
                     }}
                   />
                   <div style={{ ...xhatch("#B8860B"), zIndex: 2 }} />
-                  {/* Monogram watermark */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "50%",
-                      left: "50%",
-                      transform: "translate(-50%,-50%)",
-                      fontSize: sc(compact ? 90 : 125),
-                      fontWeight: 300,
-                      color: "rgba(184,134,11,0.05)",
-                      fontFamily: "'Playfair Display',serif",
-                      pointerEvents: "none",
-                      zIndex: 0,
-                      lineHeight: 1,
-                      userSelect: "none",
-                    }}
+                  {/* Watermark uses Watermark component — no CSS transform */}
+                  <Watermark
+                    fontSize={sc(compact ? 90 : 125)}
+                    color="rgba(184,134,11,0.06)"
+                    fontFamily="'Playfair Display',serif"
                   >
                     {INITIAL}
-                  </div>
-                  {/* Scattered gold specks */}
+                  </Watermark>
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
@@ -953,7 +982,6 @@ export default function CardViewer({
                       />
                     ))}
                   </svg>
-                  {/* Ornate vine pattern — bottom right corner */}
                   <svg
                     style={{
                       position: "absolute",
@@ -972,12 +1000,6 @@ export default function CardViewer({
                       strokeWidth="0.8"
                       fill="none"
                     />
-                    <path
-                      d={`M${sc(50)},${sc(50)} C${sc(35)},${sc(35)} ${sc(30)},${sc(45)} ${sc(20)},${sc(30)}`}
-                      stroke="#B8860B"
-                      strokeWidth="0.5"
-                      fill="none"
-                    />
                     <circle
                       cx={sc(10)}
                       cy={sc(20)}
@@ -985,15 +1007,7 @@ export default function CardViewer({
                       fill="#B8860B"
                       opacity="0.8"
                     />
-                    <circle
-                      cx={sc(20)}
-                      cy={sc(30)}
-                      r={sc(1.5)}
-                      fill="#B8860B"
-                      opacity="0.6"
-                    />
                   </svg>
-                  {/* Side accent + hairline */}
                   <div
                     style={{
                       position: "absolute",
@@ -1024,10 +1038,7 @@ export default function CardViewer({
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════
-                  SOLAR / EMERALD: circuit traces + floating orbs
-                  + lock icon + data stream lines
-              ══════════════════════════════════════════════════════ */}
+              {/* ── SOLAR / EMERALD ── */}
               {s === "solar" && (
                 <>
                   <div
@@ -1047,7 +1058,10 @@ export default function CardViewer({
                   <div
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       background:
                         "linear-gradient(135deg, rgba(0,200,150,0.05) 0%, transparent 50%, rgba(0,100,75,0.08) 100%)",
                       animation: "emeraldPulse 6s ease-in-out infinite",
@@ -1055,11 +1069,11 @@ export default function CardViewer({
                       zIndex: 2,
                     }}
                   />
-                  {/* Circuit trace paths */}
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
@@ -1097,7 +1111,6 @@ export default function CardViewer({
                       r={sc(1)}
                       fill="#00C896"
                     />
-                    {/* Data stream dots */}
                     {Array.from({ length: 8 }, (_, i) => (
                       <circle
                         key={i}
@@ -1109,11 +1122,11 @@ export default function CardViewer({
                       />
                     ))}
                   </svg>
-                  {/* Floating orbs */}
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
@@ -1139,7 +1152,6 @@ export default function CardViewer({
                       />
                     ))}
                   </svg>
-                  {/* Top hairline */}
                   <div
                     style={{
                       position: "absolute",
@@ -1156,16 +1168,16 @@ export default function CardViewer({
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════
-                  DEEP SPACE: full star field + constellation
-                  + orbital rings + nebula glow (unchanged, best in class)
-              ══════════════════════════════════════════════════════ */}
+              {/* ── DEEP SPACE ── */}
               {s === "deepspace" && (
                 <>
                   <div
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       background:
                         "radial-gradient(circle at 15% 25%, rgba(80,0,200,0.08), transparent 50%), radial-gradient(circle at 80% 75%, rgba(0,80,200,0.06), transparent 50%)",
                       pointerEvents: "none",
@@ -1175,14 +1187,14 @@ export default function CardViewer({
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
                       zIndex: 2,
                     }}
                   >
-                    {/* Star field */}
                     {Array.from({ length: 70 }).map((_, i) => (
                       <circle
                         key={i}
@@ -1202,18 +1214,19 @@ export default function CardViewer({
                         )}
                       </circle>
                     ))}
-                    {/* Constellation */}
                     <g
                       transform={`translate(${W - sc(55)},${sc(10)})`}
                       opacity="0.38"
                     >
-                      {[
-                        [0, 0],
-                        [sc(8), sc(5)],
-                        [sc(16), sc(2)],
-                        [sc(14), sc(14)],
-                        [sc(4), sc(12)],
-                      ].map(([x, y], i) => (
+                      {(
+                        [
+                          [0, 0],
+                          [sc(8), sc(5)],
+                          [sc(16), sc(2)],
+                          [sc(14), sc(14)],
+                          [sc(4), sc(12)],
+                        ] as [number, number][]
+                      ).map(([x, y], i) => (
                         <circle
                           key={i}
                           cx={x}
@@ -1222,12 +1235,14 @@ export default function CardViewer({
                           fill="white"
                         />
                       ))}
-                      {[
-                        [0, 0, sc(8), sc(5)],
-                        [sc(8), sc(5), sc(16), sc(2)],
-                        [sc(8), sc(5), sc(14), sc(14)],
-                        [sc(8), sc(5), sc(4), sc(12)],
-                      ].map(([x1, y1, x2, y2], i) => (
+                      {(
+                        [
+                          [0, 0, sc(8), sc(5)],
+                          [sc(8), sc(5), sc(16), sc(2)],
+                          [sc(8), sc(5), sc(14), sc(14)],
+                          [sc(8), sc(5), sc(4), sc(12)],
+                        ] as [number, number, number, number][]
+                      ).map(([x1, y1, x2, y2], i) => (
                         <line
                           key={i}
                           x1={x1}
@@ -1239,7 +1254,6 @@ export default function CardViewer({
                         />
                       ))}
                     </g>
-                    {/* Orbital rings */}
                     <ellipse
                       cx={W - QR_COL_W / 2}
                       cy={H / 2}
@@ -1264,10 +1278,7 @@ export default function CardViewer({
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════
-                  IVORY / BRONZE: brush strokes + scattered copper
-                  particles + flowing curve accents
-              ══════════════════════════════════════════════════════ */}
+              {/* ── IVORY / BRONZE ── */}
               {s === "ivory" && (
                 <>
                   <div
@@ -1284,11 +1295,11 @@ export default function CardViewer({
                     }}
                   />
                   <div style={{ ...brush("#B87333"), zIndex: 2 }} />
-                  {/* Copper particles */}
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
@@ -1317,7 +1328,6 @@ export default function CardViewer({
                       />
                     ))}
                   </svg>
-                  {/* Flowing accent curves */}
                   <svg
                     style={{
                       position: "absolute",
@@ -1336,14 +1346,7 @@ export default function CardViewer({
                       strokeWidth="0.8"
                       fill="none"
                     />
-                    <path
-                      d={`M0,${sc(38)} Q${sc(35)},${sc(20)} ${sc(80)},${sc(35)}`}
-                      stroke="#B87333"
-                      strokeWidth="0.5"
-                      fill="none"
-                    />
                   </svg>
-                  {/* Accent bars + hairline */}
                   <div
                     style={{
                       position: "absolute",
@@ -1374,7 +1377,10 @@ export default function CardViewer({
                   <div
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       background:
                         "linear-gradient(125deg, rgba(184,115,51,0.04) 0%, transparent 40%, rgba(184,115,51,0.03) 100%)",
                       animation: "copperDrift 7s ease-in-out infinite",
@@ -1385,10 +1391,7 @@ export default function CardViewer({
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════
-                  NEON / VOID: square grid + scan line + data
-                  particle stream + binary rain column accents
-              ══════════════════════════════════════════════════════ */}
+              {/* ── NEON / VOID ── */}
               {s === "neon" && (
                 <>
                   <div
@@ -1405,11 +1408,11 @@ export default function CardViewer({
                     }}
                   />
                   <div style={{ ...sqGrid("#7C83F0"), zIndex: 2 }} />
-                  {/* Data particles */}
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
@@ -1438,7 +1441,6 @@ export default function CardViewer({
                         opacity="0.25"
                       />
                     ))}
-                    {/* Vertical data stream lines */}
                     {Array.from({ length: 6 }, (_, i) => (
                       <line
                         key={i}
@@ -1452,7 +1454,6 @@ export default function CardViewer({
                       />
                     ))}
                   </svg>
-                  {/* Corner brackets */}
                   <svg
                     style={{
                       position: "absolute",
@@ -1490,7 +1491,6 @@ export default function CardViewer({
                       strokeWidth="0.5"
                     />
                   </svg>
-                  {/* Animated edge hairlines */}
                   <div
                     style={{
                       position: "absolute",
@@ -1521,11 +1521,7 @@ export default function CardViewer({
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════
-                  CIRCUIT / ARCTIC: horizontal scan lines +
-                  ice crystal SVG shapes + corner brackets
-                  + aurora shimmer band
-              ══════════════════════════════════════════════════════ */}
+              {/* ── CIRCUIT / ARCTIC ── */}
               {s === "circuit" && (
                 <>
                   <div
@@ -1545,7 +1541,10 @@ export default function CardViewer({
                   <div
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       background:
                         "linear-gradient(135deg, rgba(156,184,220,0.04) 0%, transparent 50%, rgba(60,100,160,0.05) 100%)",
                       animation: "arcticGlow 7s ease-in-out infinite",
@@ -1553,11 +1552,11 @@ export default function CardViewer({
                       zIndex: 2,
                     }}
                   />
-                  {/* Ice crystal / snowflake shapes */}
                   <svg
                     style={{
                       position: "absolute",
-                      inset: 0,
+                      top: 0,
+                      left: 0,
                       width: "100%",
                       height: "100%",
                       pointerEvents: "none",
@@ -1570,23 +1569,32 @@ export default function CardViewer({
                       [W * 0.25, H * 0.75, sc(6)],
                       [W * 0.6, H * 0.85, sc(5)],
                       [W * 0.12, H * 0.4, sc(4)],
-                    ].map(([cx, cy, r], i) => {
-                      const spokes = Array.from({ length: 6 }, (_, k) => {
-                        const a = (k * Math.PI) / 3;
-                        return `<line x1="${cx}" y1="${cy}" x2="${cx + r * Math.cos(a)}" y2="${cy + r * Math.sin(a)}" stroke="#9CB8DC" stroke-width="0.5" opacity="0.3"/>`;
-                      }).join("");
-                      return (
-                        <g
-                          key={i}
-                          dangerouslySetInnerHTML={{
-                            __html:
-                              spokes +
-                              `<circle cx="${cx}" cy="${cy}" r="${r * 0.18}" fill="#9CB8DC" opacity="0.4"/>`,
-                          }}
+                    ].map(([cx, cy, r], i) => (
+                      <g key={i}>
+                        {Array.from({ length: 6 }, (_, k) => {
+                          const a = (k * Math.PI) / 3;
+                          return (
+                            <line
+                              key={k}
+                              x1={cx}
+                              y1={cy}
+                              x2={cx + r * Math.cos(a)}
+                              y2={cy + r * Math.sin(a)}
+                              stroke="#9CB8DC"
+                              strokeWidth="0.5"
+                              opacity="0.3"
+                            />
+                          );
+                        })}
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={r * 0.18}
+                          fill="#9CB8DC"
+                          opacity="0.4"
                         />
-                      );
-                    })}
-                    {/* Scattered ice particles */}
+                      </g>
+                    ))}
                     {[
                       [0.15, 0.55, sc(0.8)],
                       [0.32, 0.28, sc(0.6)],
@@ -1606,7 +1614,6 @@ export default function CardViewer({
                       />
                     ))}
                   </svg>
-                  {/* Corner brackets */}
                   <div
                     style={{
                       position: "absolute",
@@ -1623,17 +1630,16 @@ export default function CardViewer({
                   <div
                     style={{
                       position: "absolute",
-                      bottom: sc(8),
-                      left: sc(8),
+                      bottom: PB + sc(2),
+                      left: PH + sc(2),
                       width: sc(10),
                       height: sc(10),
-                      borderBottom: `${sc(0.5)}px solid rgba(156,184,220,0.25)`,
-                      borderLeft: `${sc(0.5)}px solid rgba(156,184,220,0.25)`,
+                      borderBottom: `${sc(0.5)}px solid rgba(156,184,220,0.22)`,
+                      borderLeft: `${sc(0.5)}px solid rgba(156,184,220,0.22)`,
                       pointerEvents: "none",
                       zIndex: 3,
                     }}
                   />
-                  {/* Hairlines */}
                   <div
                     style={{
                       position: "absolute",
@@ -1662,30 +1668,52 @@ export default function CardViewer({
                 </>
               )}
 
-              {/* ══ CONTENT: left text + divider + right QR ══ */}
+              {/* ══════════════════════════════════════════════════════════
+                CONTENT LAYOUT
+
+                ROOT FIX for all alignment issues:
+                Use position:absolute + explicit top:0 left:0 width:W height:H
+                instead of position:relative + height:H.
+
+                Why: html2canvas re-runs layout on a cloned document. A
+                position:relative child inside a position:absolute parent can
+                have its % / 'auto' dimensions computed differently in the
+                clone, causing the flex column to get the wrong height and
+                pushing the CTA out of position.
+
+                position:absolute top:0 left:0 with explicit W/H pixels
+                is always resolved correctly, in both browser and html2canvas.
+              ══════════════════════════════════════════════════════════ */}
               <div
                 style={{
-                  position: "relative",
-                  zIndex: 10,
-                  padding: P,
-                  height: "100%",
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: W,
+                  height: H,
+                  paddingTop: PT,
+                  paddingBottom: PB,
+                  paddingLeft: PH,
+                  paddingRight: PH,
+                  boxSizing: "border-box",
                   display: "flex",
                   flexDirection: "row",
-                  boxSizing: "border-box",
                   gap: sc(8),
+                  zIndex: 10,
                   ...sm,
                 }}
               >
-                {/* LEFT */}
+                {/* LEFT COLUMN */}
                 <div
                   style={{
                     flex: 1,
                     display: "flex",
                     flexDirection: "column",
                     minWidth: 0,
+                    overflow: "hidden",
                   }}
                 >
-                  {/* Org */}
+                  {/* Org row — flexShrink:0 keeps it from being squeezed */}
                   <div
                     style={{
                       display: "flex",
@@ -1722,14 +1750,12 @@ export default function CardViewer({
                           justifyContent: "center",
                           fontSize: sc(9),
                           color: template.accent,
-                          border: `${sc(0.5)}px solid ${template.accent}28`,
                           flexShrink: 0,
                         }}
                       >
-                        🎓
+                        <GraduationCap size={fs.icon * 0.6} />
                       </div>
                     )}
-                    {/* FIX: org name now clips cleanly, no overflow into QR column */}
                     <span
                       style={{
                         fontSize: fs.orgName,
@@ -1741,14 +1767,13 @@ export default function CardViewer({
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        maxWidth: `calc(100% - ${fs.icon}px - ${sc(6)}px)`,
                       }}
                     >
                       {card.org_name || "Institution"}
                     </span>
                   </div>
 
-                  {/* Name + meta — flex:1 centres vertically */}
+                  {/* Center block — flex:1 fills remaining space, centering the name */}
                   <div
                     style={{
                       flex: 1,
@@ -1831,50 +1856,61 @@ export default function CardViewer({
                     )}
                   </div>
 
-                  {/* CTA — FIX: alignSelf:'flex-start' + explicit padding keeps it left-anchored and text centred */}
+                  {/* CTA — block flex row, no inline-flex/alignSelf (html2canvas-safe) */}
                   <div
                     style={{
-                      display: "inline-flex",
-                      alignSelf: "flex-start",
+                      display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      padding: `${sc(3)}px ${sc(10)}px`,
-                      border: `${sc(0.5)}px solid ${template.accent}44`,
-                      borderRadius: sc(
-                        s === "neon" || s === "solar" || s === "aurora"
-                          ? 3
-                          : 20,
-                      ),
-                      background: `${template.accent}08`,
-                      whiteSpace: "nowrap",
+                      flexShrink: 0,
                     }}
                   >
-                    <span
+                    <div
                       style={{
-                        fontSize: fs.cta,
-                        color: template.accent,
-                        fontFamily: template.monoFont,
-                        fontWeight: 400,
-                        letterSpacing: `${sc(s === "obsidian" ? 1.5 : 0.5)}px`,
-                        textTransform: s === "obsidian" ? "uppercase" : "none",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: `${sc(4)}px ${sc(10)}px`,
+                        border: `${sc(0.5)}px solid ${template.accent}44`,
+                        borderRadius: sc(
+                          s === "neon" || s === "solar" || s === "aurora"
+                            ? 3
+                            : 20,
+                        ),
+                        background: `${template.accent}08`,
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      {s === "obsidian"
-                        ? "View Memories"
-                        : s === "aurora"
-                          ? "Access Vault →"
-                          : s === "crimson"
-                            ? "Open Memories"
-                            : s === "solar"
-                              ? "Decrypt →"
-                              : s === "deepspace"
-                                ? "Launch Portal →"
-                                : s === "ivory"
-                                  ? "Reveal Memories"
-                                  : s === "neon"
-                                    ? "RUN ./memories"
-                                    : "ghost.access →"}
-                    </span>
+                      <span
+                        style={{
+                          fontSize: fs.cta,
+                          color: template.accent,
+                          fontFamily: template.monoFont,
+                          fontWeight: 400,
+                          lineHeight: 1,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          letterSpacing: `${sc(s === "obsidian" ? 1.5 : 0.5)}px`,
+                          textTransform:
+                            s === "obsidian" ? "uppercase" : "none",
+                        }}
+                      >
+                        {s === "obsidian"
+                          ? "View Memories"
+                          : s === "aurora"
+                            ? "Access Vault →"
+                            : s === "crimson"
+                              ? "Open Memories"
+                              : s === "solar"
+                                ? "Decrypt →"
+                                : s === "deepspace"
+                                  ? "Launch Portal →"
+                                  : s === "ivory"
+                                    ? "Reveal Memories"
+                                    : s === "neon"
+                                      ? "RUN ./memories"
+                                      : "ghost.access →"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1888,7 +1924,7 @@ export default function CardViewer({
                   }}
                 />
 
-                {/* RIGHT: QR centred */}
+                {/* RIGHT: QR centered */}
                 <div
                   style={{
                     width: QR_COL_W,
@@ -1946,6 +1982,7 @@ export default function CardViewer({
                       letterSpacing: `${sc(0.8)}px`,
                       textAlign: "center",
                       lineHeight: 1.3,
+                      flexShrink: 0,
                     }}
                   >
                     SCAN
@@ -1955,7 +1992,7 @@ export default function CardViewer({
             </div>
           )}
 
-          {/* ════════════════ BACK ════════════════ */}
+          {/* ═══════════════════ BACK FACE ═══════════════════ */}
           {renderMode !== "front" && (
             <div
               className="pcard-face"
@@ -1978,7 +2015,10 @@ export default function CardViewer({
               <div
                 style={{
                   position: "absolute",
-                  inset: 0,
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
                   zIndex: 1,
                   background:
                     card.card_back_image_url || card.back_image_url
@@ -1986,17 +2026,25 @@ export default function CardViewer({
                       : "none",
                 }}
               />
+              {/* Back content — same absolute positioning fix */}
               <div
                 style={{
-                  position: "relative",
-                  zIndex: 2,
-                  height: "100%",
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: W,
+                  height: H,
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  padding: P,
+                  paddingTop: PT,
+                  paddingBottom: PB,
+                  paddingLeft: PH,
+                  paddingRight: PH,
+                  boxSizing: "border-box",
                   textAlign: "center",
+                  zIndex: 2,
                   ...sm,
                 }}
               >
@@ -2037,9 +2085,9 @@ export default function CardViewer({
                 <div
                   style={{
                     position: "absolute",
-                    bottom: P,
-                    left: P,
-                    right: P,
+                    bottom: PB,
+                    left: PH,
+                    right: PH,
                     display: "flex",
                     justifyContent: "space-between",
                   }}
@@ -2083,16 +2131,4 @@ export default function CardViewer({
       )}
     </div>
   );
-}
-
-/** Parse cx/cy/r/fill/opacity from a raw <circle> string (used for inline scatter dots) */
-function parseCircle(raw: string): React.SVGProps<SVGCircleElement> {
-  const get = (k: string) => raw.match(new RegExp(`${k}="([^"]+)"`))?.[1];
-  return {
-    cx: get("cx"),
-    cy: get("cy"),
-    r: get("r"),
-    fill: get("fill"),
-    opacity: get("opacity"),
-  };
 }

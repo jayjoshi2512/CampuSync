@@ -62,11 +62,11 @@ export default function SuperAdminDashboard() {
   }, [tab, isDemo]);
 
   const stats = [
-    { label: 'Institutions', value: dashboardData?.stats?.totalOrganizations || 0, color: '#7C7FFA' },
+    { label: 'Institutions', value: dashboardData?.stats?.totalOrganizations || 0, color: '#14B8A6' },
     { label: 'Pending', value: dashboardData?.stats?.pendingRegistrations || 0, color: '#F59E0B' },
     { label: 'Total Users', value: dashboardData?.stats?.totalUsers || 0, color: '#22C55E' },
     { label: 'Total Cards', value: dashboardData?.stats?.totalCards || 0, color: '#38BDF8' },
-    { label: 'Storage', value: dashboardData?.stats?.storageUsed || '0 GB', color: '#A78BFA' },
+    { label: 'Storage', value: dashboardData?.stats?.storageUsed || '0 GB', color: '#14B8A6' },
     { label: 'MRR', value: dashboardData?.stats?.mrr || '₹0', color: '#F87171' },
   ];
 
@@ -82,7 +82,7 @@ export default function SuperAdminDashboard() {
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--color-bg-primary)', color: 'var(--color-text-primary)' }}>
       {/* ─── Sidebar ─── */}
       <aside style={{
-        width: 220, flexShrink: 0, background: 'var(--color-bg-secondary)',
+        width: 240, flexShrink: 0, background: 'var(--color-bg-secondary)',
         borderRight: '1px solid var(--color-border-subtle)',
         display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh',
       }}>
@@ -139,7 +139,7 @@ export default function SuperAdminDashboard() {
         {/* ═══ OVERVIEW ═══ */}
         {tab === 'overview' && (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>
               {stats.map((s) => (
                 <div key={s.label} style={{ padding: 20, borderRadius: 12, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-subtle)' }}>
                   <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, fontWeight: 600 }}>{s.label}</p>

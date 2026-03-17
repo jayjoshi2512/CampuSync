@@ -50,6 +50,18 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING(512),
     allowNull: true,
   },
+  github_url: {
+    type: DataTypes.STRING(512),
+    allowNull: true,
+  },
+  twitter_url: {
+    type: DataTypes.STRING(512),
+    allowNull: true,
+  },
+  website_url: {
+    type: DataTypes.STRING(512),
+    allowNull: true,
+  },
   instagram_url: {
     type: DataTypes.STRING(512),
     allowNull: true,
@@ -59,8 +71,8 @@ const User = sequelize.define('User', {
     allowNull: true,
   },
   role: {
-    type: DataTypes.ENUM('student', 'alumni'),
-    defaultValue: 'student',
+    type: DataTypes.ENUM('user', 'alumni'),
+    defaultValue: 'user',
   },
   last_login_at: {
     type: DataTypes.DATE,

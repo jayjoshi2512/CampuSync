@@ -49,8 +49,17 @@ const Memory = sequelize.define('Memory', {
     allowNull: true,
   },
   caption: {
-    type: DataTypes.STRING(500),
+    type: DataTypes.TEXT,
     allowNull: true,
+  },
+  album: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: 'General',
+  },
+  status: {
+    type: DataTypes.TINYINT(1),
+    defaultValue: 0,
   },
   is_flagged: {
     type: DataTypes.TINYINT(1),

@@ -96,7 +96,7 @@ const Organization = sequelize.define('Organization', {
     allowNull: true,
   },
   card_back_image_url: {
-    type: DataTypes.STRING(512),
+    type: DataTypes.STRING,
     allowNull: true,
   },
   card_back_public_id: {
@@ -104,7 +104,12 @@ const Organization = sequelize.define('Organization', {
     allowNull: true,
   },
   custom_domain: {
-    type: DataTypes.STRING(255),
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true,
+  },
+  features_data: {
+    type: DataTypes.JSON,
     allowNull: true,
   },
 

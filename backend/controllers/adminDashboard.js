@@ -26,7 +26,7 @@ const { logger } = require('../config/database');
  */
 async function getCohort(req, res) {
   try {
-    const { page = 1, limit = 20, search } = req.query;
+    const { page = 1, limit = 20, search, sortBy = 'name', sortDir = 'asc' } = req.query;
     const where = { organization_id: req.actor.org };
     if (search) {
       where[Op.or] = [
@@ -36,10 +36,19 @@ async function getCohort(req, res) {
       ];
     }
 
+    const direction = sortDir.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+    let order = [['name', 'ASC']];
+    
+    if (['name', 'roll_number', 'branch'].includes(sortBy)) {
+      order = [[sortBy, direction]];
+    } else if (sortBy === 'scans') {
+      order = [[Card, 'scan_count', direction]];
+    }
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const { rows, count } = await User.findAndCountAll({
       where,
-      order: [['name', 'ASC']],
+      order,
       limit: parseInt(limit),
       offset,
       include: [{ model: Card, attributes: ['id', 'qr_hash', 'share_slug', 'scan_count', 'template_id'] }],
@@ -184,7 +193,7 @@ async function importCsv(req, res) {
 async function addStudent(req, res) {
   const t = await sequelize.transaction();
   try {
-    const { email, name, roll_number, branch, batch_year } = req.body;
+    const { email, name, roll_number, branch, batch_year, role } = req.body;
     const orgId = req.actor.org;
 
     if (!email || !name) {
@@ -202,7 +211,9 @@ async function addStudent(req, res) {
       existing.name = name;
       existing.roll_number = roll_number || existing.roll_number;
       existing.branch = branch || existing.branch;
+      existing.branch = branch || existing.branch;
       existing.batch_year = batch_year || existing.batch_year;
+      if (role && ['user', 'alumni'].includes(role)) existing.role = role;
       await existing.save({ transaction: t });
 
       // Ensure card exists or update it
@@ -229,6 +240,7 @@ async function addStudent(req, res) {
       roll_number,
       branch,
       batch_year,
+      role: role && ['user', 'alumni'].includes(role) ? role : 'user',
     }, { transaction: t });
 
     const org = await Organization.findByPk(orgId);
@@ -260,7 +272,7 @@ async function addStudent(req, res) {
 async function editStudent(req, res) {
   try {
     const { id } = req.params;
-    const { name, email, roll_number, branch, batch_year } = req.body;
+    const { name, email, roll_number, branch, batch_year, role } = req.body;
     const orgId = req.actor.org;
 
     const user = await User.findOne({ where: { id, organization_id: orgId } });
@@ -281,6 +293,7 @@ async function editStudent(req, res) {
     user.roll_number = roll_number !== undefined ? roll_number : user.roll_number;
     user.branch = branch !== undefined ? branch : user.branch;
     user.batch_year = batch_year !== undefined ? batch_year : user.batch_year;
+    if (role && ['user', 'alumni'].includes(role)) user.role = role;
 
     await user.save();
 

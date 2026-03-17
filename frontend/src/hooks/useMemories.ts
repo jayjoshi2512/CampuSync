@@ -1,5 +1,5 @@
 // frontend/src/hooks/useMemories.ts
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import api from '@/utils/api';
 import { useAuthStore } from '@/store/authStore';
 
@@ -28,8 +28,8 @@ export function useMemories(isDemo?: boolean) {
       thumbnail_url: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=400&q=60',
       caption: '🎓 Farewell day vibes! What an incredible journey.',
       uploader: { name: 'Aarav Patel' },
-      reaction_counts: { '❤️': 12, '🔥': 5 },
-      viewer_reactions: ['❤️'],
+      reaction_counts: { 'heart': 12, 'flame': 5 },
+      viewer_reactions: ['heart'],
       created_at: new Date(Date.now() - 86400000).toISOString(),
     },
     {
@@ -38,7 +38,7 @@ export function useMemories(isDemo?: boolean) {
       thumbnail_url: 'https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=400&q=60',
       caption: '🎬 Behind the scenes from our last group project presentation!',
       uploader: { name: 'Priya Sharma' },
-      reaction_counts: { '😂': 8, '🔥': 3 },
+      reaction_counts: { 'smile': 8, 'flame': 3 },
       viewer_reactions: [],
       created_at: new Date(Date.now() - 172800000).toISOString(),
     },
@@ -111,6 +111,47 @@ export function useMemories(isDemo?: boolean) {
         }
       } catch { }
     }
+  }, [isDemo]);
+
+  // Background polling for real-time reactions and new memories
+  useEffect(() => {
+    if (isDemo) return;
+    const interval = setInterval(async () => {
+      try {
+        const endpoint = getEndpoint();
+        const { data } = await api.get(endpoint, { params: { limit: 20 } });
+        const items = data.items || data.memories || [];
+        setMemories((prev) => {
+          const newMemories = [...prev];
+          let changed = false;
+          items.forEach((item: Memory) => {
+            const idx = newMemories.findIndex(m => m.id === item.id);
+            if (idx >= 0) {
+              // Update reactions if changed
+              if (JSON.stringify(newMemories[idx].reaction_counts) !== JSON.stringify(item.reaction_counts) ||
+                  JSON.stringify(newMemories[idx].viewer_reactions) !== JSON.stringify(item.viewer_reactions)) {
+                newMemories[idx] = {
+                  ...newMemories[idx],
+                  reaction_counts: item.reaction_counts,
+                  viewer_reactions: item.viewer_reactions,
+                };
+                changed = true;
+              }
+            } else {
+              // Add new memory to top
+              if (!cursor.current || newMemories.length < 20) {
+                newMemories.unshift(item);
+                changed = true;
+              }
+            }
+          });
+          return changed ? newMemories : prev;
+        });
+      } catch (e) {
+        // silently fail on polling
+      }
+    }, 10000); // 10 seconds
+    return () => clearInterval(interval);
   }, [isDemo]);
 
   return { memories, loading, hasMore, fetchMemories, addMemory, deleteMemory, toggleReaction };

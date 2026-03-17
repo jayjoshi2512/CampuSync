@@ -5,6 +5,7 @@ import { Helmet } from 'react-helmet-async';
 import api from '@/utils/api';
 import GlassCard from '@/components/GlassCard';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { Lock, Twitter, Github, Linkedin, Instagram, Globe } from 'lucide-react';
 
 export default function PublicCard() {
   const { slug } = useParams<{ slug: string }>();
@@ -35,7 +36,7 @@ export default function PublicCard() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <GlassCard elevation={1} style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+          <Lock size={40} style={{ color: 'var(--color-text-muted)', marginBottom: 16 }} />
           <p style={{ color: 'var(--color-text-muted)', fontSize: 15 }}>{error}</p>
         </GlassCard>
       </div>
@@ -88,18 +89,25 @@ export default function PublicCard() {
           )}
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-            {user?.linkedin_url && (
-              <a href={user.linkedin_url} target="_blank" rel="noopener"
-                style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--color-border-default)', color: 'var(--color-text-secondary)', textDecoration: 'none', fontSize: 13 }}>
-                LinkedIn
+            {[
+              { url: user?.linkedin_url, icon: <Linkedin size={18} />, label: 'LinkedIn' },
+              { url: user?.github_url, icon: <Github size={18} />, label: 'GitHub' },
+              { url: user?.twitter_url, icon: <Twitter size={18} />, label: 'Twitter' },
+              { url: user?.instagram_url, icon: <Instagram size={18} />, label: 'Instagram' },
+              { url: user?.website_url, icon: <Globe size={18} />, label: 'Website' },
+            ].map(social => social.url ? (
+              <a key={social.label} href={social.url} target="_blank" rel="noopener" aria-label={social.label}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40,
+                  borderRadius: '50%', background: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)',
+                  border: '1px solid var(--color-border-subtle)', transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-brand)'; e.currentTarget.style.borderColor = 'var(--color-brand)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)'; e.currentTarget.style.borderColor = 'var(--color-border-subtle)'; }}
+              >
+                {social.icon}
               </a>
-            )}
-            {user?.instagram_url && (
-              <a href={user.instagram_url} target="_blank" rel="noopener"
-                style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--color-border-default)', color: 'var(--color-text-secondary)', textDecoration: 'none', fontSize: 13 }}>
-                Instagram
-              </a>
-            )}
+            ) : null)}
           </div>
 
           <p style={{ marginTop: 28, fontSize: 11, color: 'var(--color-text-muted)' }}>

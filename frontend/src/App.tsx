@@ -16,6 +16,7 @@ import AdminDashboard from '@/pages/AdminDashboard';
 import UserPortal from '@/pages/UserPortal';
 import PublicCard from '@/pages/PublicCard';
 import ResetPassword from '@/pages/ResetPassword';
+import QrLogin from '@/pages/QrLogin';
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/card/:slug" element={<PublicCard />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/qr/:qr_hash" element={<QrLogin />} />
 
             {/* Super Admin */}
             <Route path="/super-admin" element={<SuperAdminLogin />} />

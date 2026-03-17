@@ -65,7 +65,7 @@ export default function MemoryUploader({ onSuccess, onClose, isDemo }: MemoryUpl
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (e) => setProgress(Math.round((e.loaded * 100) / (e.total || 1))),
       });
-      toast('Memory uploaded! 📸', 'success');
+      toast('Memory uploaded!', 'success');
       onSuccess?.();
       onClose();
     } catch (err: any) {
@@ -95,7 +95,7 @@ export default function MemoryUploader({ onSuccess, onClose, isDemo }: MemoryUpl
           boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
         }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)' }}>📸 Upload Memory</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)' }}>Upload Memory</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: 18 }}>✕</button>
         </div>
 

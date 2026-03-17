@@ -13,16 +13,31 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
 // Helper to build full actor response
-function buildActorResponse(user, org) {
+async function buildActorResponse(user, org) {
+  // Fetch user's card to get qr_hash for QR code generation
+  let qr_hash = null;
+  try {
+    const card = await Card.findOne({ where: { user_id: user.id }, attributes: ['qr_hash'] });
+    if (card) qr_hash = card.qr_hash;
+  } catch (e) { /* ignore — card may not exist yet */ }
+
   return {
     id: user.id,
     email: user.email,
     name: user.name,
-    role: 'user',
+    role: user.role,
     roll_number: user.roll_number,
     branch: user.branch,
     batch_year: user.batch_year,
     avatar_url: user.avatar_url,
+    linkedin_url: user.linkedin_url,
+    github_url: user.github_url,
+    twitter_url: user.twitter_url,
+    website_url: user.website_url,
+    instagram_url: user.instagram_url,
+    bio: user.bio,
+    has_password: !!user.password_hash,
+    qr_hash,
     organization: {
       id: org.id,
       name: org.name,
@@ -105,7 +120,7 @@ async function verifyMagicLink(req, res) {
     res.json({
       message: 'Login successful.',
       token: jwtToken,
-      actor: buildActorResponse(user, org),
+      actor: await buildActorResponse(user, org),
     });
   } catch (err) {
     logger.error('verifyMagicLink error:', err.message);
@@ -150,7 +165,7 @@ async function qrLogin(req, res) {
     res.json({
       message: 'Login successful.',
       token,
-      actor: buildActorResponse(user, org),
+      actor: await buildActorResponse(user, org),
     });
   } catch (err) {
     logger.error('qrLogin error:', err.message);
@@ -193,7 +208,7 @@ async function login(req, res) {
     res.json({
       message: 'Login successful.',
       token,
-      actor: buildActorResponse(user, org),
+      actor: await buildActorResponse(user, org),
     });
   } catch (err) {
     logger.error('user login error:', err.message);
@@ -241,7 +256,10 @@ async function resetPassword(req, res) {
   try {
     const { token, password } = req.body;
     if (!token || !password) return res.status(400).json({ error: 'Token and password required.' });
-    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if (!/[A-Z]/.test(password)) return res.status(400).json({ error: 'Password must contain at least one uppercase letter.' });
+    if (!/[a-z]/.test(password)) return res.status(400).json({ error: 'Password must contain at least one lowercase letter.' });
+    if (!/[0-9]/.test(password)) return res.status(400).json({ error: 'Password must contain at least one number.' });
 
     const userId = await redis.get(`password_reset:${token}`);
     if (!userId) return res.status(400).json({ error: 'Reset link expired or already used.' });
@@ -269,7 +287,10 @@ async function changePassword(req, res) {
   try {
     const { current_password, new_password } = req.body;
     if (!new_password) return res.status(400).json({ error: 'New password is required.' });
-    if (new_password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    if (new_password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if (!/[A-Z]/.test(new_password)) return res.status(400).json({ error: 'Password must contain at least one uppercase letter.' });
+    if (!/[a-z]/.test(new_password)) return res.status(400).json({ error: 'Password must contain at least one lowercase letter.' });
+    if (!/[0-9]/.test(new_password)) return res.status(400).json({ error: 'Password must contain at least one number.' });
 
     const user = await User.findByPk(req.actor.id);
     if (!user) return res.status(404).json({ error: 'User not found.' });
@@ -300,7 +321,7 @@ async function getMe(req, res) {
     const user = await User.findByPk(req.actor.id);
     if (!user || user.is_active !== 1) return res.status(404).json({ error: 'User not found' });
     const org = await Organization.findByPk(user.organization_id);
-    res.json({ actor: buildActorResponse(user, org) });
+    res.json({ actor: await buildActorResponse(user, org) });
   } catch (err) {
     logger.error('getMe error:', err.message);
     res.status(500).json({ error: 'Failed to fetch profile' });

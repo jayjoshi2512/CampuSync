@@ -1,6 +1,7 @@
 // frontend/src/components/MemoryLightbox.tsx
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { Heart, Flame, Smile, Star, ThumbsUp } from 'lucide-react';
 
 interface Memory {
   id: number;
@@ -28,7 +29,14 @@ function timeAgo(d: string) {
   return `${Math.floor(s / 86400)} days ago`;
 }
 
-const emojis = ['❤️', '🔥', '😂', '😮', '😢'];
+const REACTION_KEYS = ['heart', 'flame', 'smile', 'star', 'thumbsup'];
+const REACTION_ICONS: Record<string, React.ReactNode> = {
+  heart: <Heart size={14} />,
+  flame: <Flame size={14} />,
+  smile: <Smile size={14} />,
+  star: <Star size={14} />,
+  thumbsup: <ThumbsUp size={14} />
+};
 
 export default function MemoryLightbox({ memory, onClose, onPrev, onNext, onReaction }: LightboxProps) {
   useEffect(() => {
@@ -119,18 +127,19 @@ export default function MemoryLightbox({ memory, onClose, onPrev, onNext, onReac
         </div>
 
         <div style={{ display: 'flex', gap: 6 }}>
-          {emojis.map((emoji) => (
-            <button key={emoji}
-              onClick={() => onReaction?.(memory.id, emoji)}
+          {REACTION_KEYS.map((rKey) => (
+            <button key={rKey}
+              onClick={() => onReaction?.(memory.id, rKey)}
               style={{
                 padding: '6px 10px', borderRadius: 16, fontSize: 14,
                 border: '1px solid rgba(255,255,255,0.1)',
-                background: memory.viewer_reactions?.includes(emoji) ? 'rgba(124,127,250,0.2)' : 'rgba(255,255,255,0.05)',
+                background: memory.viewer_reactions?.includes(rKey) ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)',
+                color: memory.viewer_reactions?.includes(rKey) ? '#10B981' : 'rgba(255,255,255,0.7)',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
               }}>
-              {emoji}
-              {memory.reaction_counts?.[emoji] ? (
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{memory.reaction_counts[emoji]}</span>
+              {REACTION_ICONS[rKey]}
+              {memory.reaction_counts?.[rKey] ? (
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{memory.reaction_counts[rKey]}</span>
               ) : null}
             </button>
           ))}

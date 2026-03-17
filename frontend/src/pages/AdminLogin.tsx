@@ -7,6 +7,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { useAuthStore } from '@/store/authStore';
 import { useToast } from '@/components/ToastProvider';
 import ThemeToggle from '@/components/ThemeToggle';
+import { Building2, Sparkles } from 'lucide-react';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -44,7 +45,7 @@ export default function AdminLogin() {
         name: 'BITS Pilani — Farewell 2025',
         slug: 'bits-pilani-2025',
         plan: 'growth',
-        brand_color: '#7C7FFA',
+        brand_color: '#10B981',
         logo_url: undefined,
       },
     };
@@ -76,11 +77,11 @@ export default function AdminLogin() {
       <GlassCard elevation={2} style={{ maxWidth: 420, width: '100%', padding: 40 }}>
         <div style={{
           width: 48, height: 48, borderRadius: 12,
-          background: 'linear-gradient(135deg, var(--color-brand), #A78BFA)',
+          background: 'linear-gradient(135deg, var(--color-brand), #059669)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           marginBottom: 20, fontSize: 22,
         }}>
-          🏛️
+          <Building2 size={22} color="#fff" />
         </div>
 
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 6 }}>
@@ -123,7 +124,7 @@ export default function AdminLogin() {
             background: 'transparent', color: 'var(--color-text-muted)',
             fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
           }}>
-          🎮 Demo Login (Preview UI)
+          <Sparkles size={14} /> Demo Login (Preview UI)
         </button>
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--color-text-muted)' }}>

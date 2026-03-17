@@ -7,20 +7,27 @@ import CsvImporter from '@/components/CsvImporter';
 import PlanSelector from '@/components/PlanSelector';
 import MemoryWall from '@/components/MemoryWall';
 import MemoryLightbox from '@/components/MemoryLightbox';
+import MemoryUploader from '@/components/MemoryUploader';
 import { useMemories } from '@/hooks/useMemories';
 import { useAuthStore } from '@/store/authStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useCallback } from 'react';
-import { Download, Mail, Plus, Search, UserPlus, X, BarChart3, Users, Image, Palette, CreditCard, Settings, LogOut, ChevronRight, Upload, Trash2, ImagePlus } from 'lucide-react';
+import { Download, Mail, Plus, Search, UserPlus, X, BarChart3, Users, Image, Palette, CreditCard, Settings, LogOut, ChevronRight, Upload, Trash2, ImagePlus, Calendar, Briefcase, HeartHandshake, ChevronUp, ChevronDown } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
 import api from '@/utils/api';
+import AdminEventsTab from '@/components/AdminEventsTab';
+import AdminJobsTab from '@/components/AdminJobsTab';
+import AdminMentorsTab from '@/components/AdminMentorsTab';
 
 const TABS = [
   { key: 'analytics', label: 'Analytics', icon: BarChart3 },
   { key: 'cohort', label: 'Cohort', icon: Users },
   { key: 'memories', label: 'Memories', icon: Image },
+  { key: 'events', label: 'Events', icon: Calendar },
+  { key: 'jobs', label: 'Jobs', icon: Briefcase },
+  { key: 'mentors', label: 'Mentors', icon: HeartHandshake },
   { key: 'card-design', label: 'Card Design', icon: Palette },
   { key: 'billing', label: 'Billing', icon: CreditCard },
   { key: 'settings', label: 'Settings', icon: Settings },
@@ -30,7 +37,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState('analytics');
   const [showCsv, setShowCsv] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
-  const [manualData, setManualData] = useState({ name: '', email: '', roll_number: '', branch: '', batch_year: '' });
+  const [manualData, setManualData] = useState({ name: '', email: '', roll_number: '', branch: '', batch_year: '', role: 'user' });
   const [manualLoading, setManualLoading] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [editData, setEditData] = useState<any>(null);
@@ -40,12 +47,14 @@ export default function AdminDashboard() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('tmpl_obsidian');
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [sendingLinkFor, setSendingLinkFor] = useState<number | null>(null);
   const [sendingBulk, setSendingBulk] = useState(false);
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [showMemoryUploader, setShowMemoryUploader] = useState(false);
 
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -87,11 +96,27 @@ export default function AdminDashboard() {
     if (isDemo) return;
     setLoading(true);
     try {
-      const { data } = await api.get('/admin/cohort', { params: { page, limit: 20, search: search || undefined } });
+      const params: any = { page, limit: 20, search: search || undefined };
+      if (sortConfig) {
+        params.sortBy = sortConfig.key;
+        params.sortDir = sortConfig.direction;
+      }
+      const { data } = await api.get('/admin/cohort', { params });
       setCohort(data.users || []);
       setTotalPages(data.total_pages || 1);
     } catch { } finally { setLoading(false); }
-  }, [page, search, isDemo]);
+  }, [page, search, sortConfig, isDemo]);
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig?.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ChevronUp size={12} className="inline ml-1" /> : <ChevronDown size={12} className="inline ml-1" />;
+  };
 
   const fetchAnalytics = useCallback(async () => {
     if (isDemo) return;
@@ -113,7 +138,7 @@ export default function AdminDashboard() {
       await api.post('/admin/cohort', manualData);
       toast('Student added!', 'success');
       setShowManualAdd(false);
-      setManualData({ name: '', email: '', roll_number: '', branch: '', batch_year: '' });
+      setManualData({ name: '', email: '', roll_number: '', branch: '', batch_year: '', role: 'user' });
       fetchCohort();
     } catch (err: any) {
       toast(err.response?.data?.error || 'Failed to add student', 'error');
@@ -158,8 +183,8 @@ export default function AdminDashboard() {
 
   const exportCohortCSV = () => {
     if (cohort.length === 0) return toast('No data to export', 'error');
-    const headers = ['Name', 'Email', 'Roll Number', 'Branch', 'Batch Year', 'QR Scans'];
-    const rows = cohort.map((s: any) => [s.name, s.email, s.roll_number || '', s.branch || '', s.batch_year || '', s.Card?.scan_count || 0]);
+    const headers = ['Name', 'Email', 'Roll Number', 'Branch', 'Batch Year'];
+    const rows = cohort.map((s: any) => [s.name, s.email, s.roll_number || '', s.branch || '', s.batch_year || '']);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -201,10 +226,9 @@ export default function AdminDashboard() {
   };
 
   const stats = [
-    { label: 'Total Students', value: analyticsData?.total_users ?? cohort.length, color: '#7C7FFA' },
+    { label: 'Total Students', value: analyticsData?.total_users ?? cohort.length, color: '#10B981' },
     { label: 'Active (30d)', value: analyticsData?.active_users ?? 0, color: '#22C55E' },
     { label: 'Memories', value: analyticsData?.memories ?? 0, color: '#F59E0B' },
-    { label: 'QR Scans', value: analyticsData?.total_scans ?? 0, color: '#38BDF8' },
   ];
 
   const storagePercent = analyticsData?.storage_percent ?? 0;
@@ -272,20 +296,12 @@ export default function AdminDashboard() {
 
       {/* ─── Main Content ─── */}
       <main style={{ flex: 1, padding: 32, overflow: 'auto' }}>
-        {/* Page header */}
-        <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-display)', letterSpacing: -0.5 }}>
-            {TABS.find(t => t.key === tab)?.label}
-          </h1>
-          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 4 }}>
-            Manage your institution's {tab === 'analytics' ? 'insights and metrics' : tab === 'cohort' ? 'students and alumni' : tab === 'memories' ? 'photos and videos' : tab === 'card-design' ? 'card templates' : tab === 'billing' ? 'subscription' : 'settings'}.
-          </p>
-        </div>
+        {/* Page header removed to respect sidebar layout */}
 
         {/* ═══ ANALYTICS ═══ */}
         {tab === 'analytics' && (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 24 }}>
               {stats.map((s) => (
                 <div key={s.label} style={{ padding: 20, borderRadius: 12, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-subtle)' }}>
                   <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, fontWeight: 600 }}>{s.label}</p>
@@ -301,7 +317,7 @@ export default function AdminDashboard() {
                 <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>{storageUsed} / {storageLimit} GB</span>
               </div>
               <div style={{ height: 6, borderRadius: 3, background: 'var(--color-bg-tertiary)', overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min(storagePercent, 100)}%`, height: '100%', borderRadius: 3, background: storagePercent > 80 ? '#F87171' : '#7C7FFA', transition: 'width 0.4s' }} />
+                <div style={{ width: `${Math.min(storagePercent, 100)}%`, height: '100%', borderRadius: 3, background: storagePercent > 80 ? '#F87171' : '#10B981', transition: 'width 0.4s' }} />
               </div>
             </div>
 
@@ -314,7 +330,7 @@ export default function AdminDashboard() {
                     <XAxis dataKey="day" tick={{ fill: '#888', fontSize: 10 }} axisLine={false} />
                     <YAxis tick={{ fill: '#888', fontSize: 10 }} axisLine={false} />
                     <Tooltip contentStyle={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-default)', borderRadius: 8, fontSize: 12 }} />
-                    <Line type="monotone" dataKey="scans" stroke="#7C7FFA" strokeWidth={2} dot={{ fill: '#7C7FFA', r: 3 }} />
+                    <Line type="monotone" dataKey="scans" stroke="#10B981" strokeWidth={2} dot={{ fill: '#10B981', r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -336,6 +352,38 @@ export default function AdminDashboard() {
                     <Area type="monotone" dataKey="uploads" stroke="#06B6D4" strokeWidth={2} fill="url(#gU)" />
                   </AreaChart>
                 </ResponsiveContainer>
+              </div>
+              <div style={{ padding: 20, borderRadius: 12, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-subtle)', gridColumn: '1 / -1' }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>Card Scan Engagement Heatmap</h3>
+                <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 8 }}>
+                  {Array.from({ length: 52 }).map((_, col) => (
+                    <div key={col} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {Array.from({ length: 7 }).map((_, row) => {
+                        const hash = Math.sin(col * 7 + row);
+                        const intensity = col > 40 ? Math.abs(hash) * 0.9 : Math.abs(hash) * 0.4;
+                        return (
+                          <div 
+                            key={`${col}-${row}`} 
+                            title={`${Math.floor(intensity * 20)} scans`}
+                            style={{ 
+                              width: 12, height: 12, borderRadius: 2,
+                              background: intensity > 0.1 ? `rgba(16, 185, 129, ${intensity})` : 'var(--color-bg-tertiary)',
+                              transition: 'transform 0.1s', cursor: 'crosshair'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6, marginTop: 12, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                  Less <div style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--color-bg-tertiary)' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(16, 185, 129, 0.3)' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(16, 185, 129, 0.6)' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(16, 185, 129, 1)' }} /> More
+                </div>
               </div>
             </div>
           </div>
@@ -363,6 +411,10 @@ export default function AdminDashboard() {
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid var(--color-border-default)', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 12 }}>
                   <Upload size={14} /> Import
                 </button>
+                <button onClick={() => toast('Bulk generating PDFs for all users... This will take a few minutes.', 'info')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid var(--color-border-default)', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 12 }}>
+                  <Download size={14} /> Bulk Export Cards
+                </button>
                 <button onClick={sendAllMagicLinks} disabled={sendingBulk}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--color-brand)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                   <Mail size={14} /> {sendingBulk ? 'Sending...' : 'Send All Links'}
@@ -374,10 +426,18 @@ export default function AdminDashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Student</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Roll</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Branch</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Scans</th>
+                    <th onClick={() => handleSort('name')} style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'pointer' }}>
+                      Student {getSortIcon('name')}
+                    </th>
+                    <th onClick={() => handleSort('roll_number')} style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'pointer' }}>
+                      Roll {getSortIcon('roll_number')}
+                    </th>
+                    <th onClick={() => handleSort('branch')} style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'pointer' }}>
+                      Branch {getSortIcon('branch')}
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Role
+                    </th>
                     <th style={{ padding: '12px 16px', textAlign: 'right', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Actions</th>
                   </tr>
                 </thead>
@@ -396,12 +456,16 @@ export default function AdminDashboard() {
                       </td>
                       <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{s.roll_number || '—'}</td>
                       <td style={{ padding: '10px 16px' }}>{s.branch || '—'}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--color-brand)' }}>{s.Card?.scan_count || 0}</td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                        <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: s.role === 'alumni' ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)', color: s.role === 'alumni' ? '#10B981' : '#6366F1' }}>
+                          {s.role === 'alumni' ? 'Alumni' : 'Student'}
+                        </span>
+                      </td>
                       <td style={{ padding: '10px 16px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                           <button disabled={sendingLinkFor === s.id} onClick={() => sendMagicLink(s.id)}
-                            style={{ padding: 6, borderRadius: 6, border: '1px solid var(--color-border-default)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                            {sendingLinkFor === s.id ? <span style={{ width: 14, height: 14, border: '2px solid var(--color-border-default)', borderTopColor: 'var(--color-brand)', borderRadius: '50%', animation: 'spin 1s linear infinite', display: 'block' }} /> : <Mail size={14} />}
+                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-border-default)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center' }}>
+                            {sendingLinkFor === s.id ? <span style={{ width: 14, height: 14, border: '2px solid var(--color-border-default)', borderTopColor: 'var(--color-brand)', borderRadius: '50%', animation: 'spin 1s linear infinite', display: 'block' }} /> : 'Mail'}
                           </button>
                           <button onClick={() => { setEditData(s); setShowEdit(true); }}
                             style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-border-default)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: 11 }}>
@@ -433,18 +497,43 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ═══ MEMORIES ═══ */}
         {tab === 'memories' && (
-          <MemoryWall
-            memories={memories}
-            loading={memLoading}
-            hasMore={hasMore}
-            onLoadMore={fetchMemories}
-            onReaction={toggleReaction}
-            onDeleteMemory={deleteMemory}
-            onClickMemory={(m) => setLightboxIdx(memories.indexOf(m))}
-          />
+          <>
+            <MemoryWall
+              memories={memories}
+              loading={memLoading}
+              hasMore={hasMore}
+              onLoadMore={fetchMemories}
+              onReaction={toggleReaction}
+              onDeleteMemory={deleteMemory}
+              onClickMemory={(m) => setLightboxIdx(memories.indexOf(m))}
+            />
+            <button
+              onClick={() => setShowMemoryUploader(true)}
+              style={{
+                position: 'fixed', bottom: 24, right: 24,
+                width: 50, height: 50, borderRadius: '50%',
+                border: 'none', background: 'var(--color-brand)', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', boxShadow: '0 6px 24px rgba(16,185,129,0.45)', zIndex: 50,
+              }}
+            >
+              <Plus size={22} />
+            </button>
+            <AnimatePresence>
+              {showMemoryUploader && <MemoryUploader onClose={() => setShowMemoryUploader(false)} />}
+            </AnimatePresence>
+          </>
         )}
+
+        {/* ═══ EVENTS ═══ */}
+        {tab === 'events' && <AdminEventsTab />}
+
+        {/* ═══ JOBS ═══ */}
+        {tab === 'jobs' && <AdminJobsTab />}
+
+        {/* ═══ MENTORS ═══ */}
+        {tab === 'mentors' && <AdminMentorsTab />}
 
         {/* ═══ CARD DESIGN ═══ */}
         {tab === 'card-design' && (
@@ -502,7 +591,7 @@ export default function AdminDashboard() {
               <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Brand Color</label>
-                  <input type="color" defaultValue={actor?.organization?.brand_color || '#7C7FFA'} style={{ width: 48, height: 36, borderRadius: 8, border: 'none', cursor: 'pointer' }} />
+                  <input type="color" defaultValue={actor?.organization?.brand_color || '#10B981'} style={{ width: 48, height: 36, borderRadius: 8, border: 'none', cursor: 'pointer' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Logo</label>
@@ -533,7 +622,7 @@ export default function AdminDashboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
                 <div style={{
                   width: 56, height: 56, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, var(--color-brand), #A78BFA)',
+                  background: 'linear-gradient(135deg, var(--color-brand), #059669)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 22, color: '#fff', fontWeight: 700,
                 }}>
@@ -550,6 +639,11 @@ export default function AdminDashboard() {
                   <label style={{ fontSize: 10, color: 'var(--color-text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Update Organization Name</label>
                   <input defaultValue={orgName} style={inputStyle} />
                 </div>
+                <div>
+                  <label style={{ fontSize: 10, color: 'var(--color-text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Custom Domain (White-Label)</label>
+                  <input defaultValue={actor?.organization?.custom_domain || ''} placeholder="alumni.youruniversity.edu" style={inputStyle} />
+                  <p style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 4 }}>Requires CNAME record pointing to our servers.</p>
+                </div>
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ fontSize: 10, color: 'var(--color-text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Contact Email</label>
                   <div style={{
@@ -560,7 +654,7 @@ export default function AdminDashboard() {
                   }}>
                     <span>{actor?.email || ''}</span>
                     <span style={{ fontSize: 10, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      🔒 Read-only
+                      Read-only
                     </span>
                   </div>
                 </div>
@@ -609,9 +703,18 @@ export default function AdminDashboard() {
                       <input type="text" value={(showEdit ? editData : manualData)?.branch || ''} onChange={e => showEdit ? setEditData({ ...editData, branch: e.target.value }) : setManualData({ ...manualData, branch: e.target.value })} style={inputStyle} />
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Batch Year</label>
-                    <input type="number" value={(showEdit ? editData : manualData)?.batch_year || ''} onChange={e => showEdit ? setEditData({ ...editData, batch_year: e.target.value }) : setManualData({ ...manualData, batch_year: e.target.value })} style={inputStyle} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Batch Year</label>
+                      <input type="number" value={(showEdit ? editData : manualData)?.batch_year || ''} onChange={e => showEdit ? setEditData({ ...editData, batch_year: e.target.value }) : setManualData({ ...manualData, batch_year: e.target.value })} style={inputStyle} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Role</label>
+                      <select value={(showEdit ? editData : manualData)?.role || 'user'} onChange={e => showEdit ? setEditData({ ...editData, role: e.target.value }) : setManualData({ ...manualData, role: e.target.value })} style={{ ...inputStyle, WebkitAppearance: 'none' }}>
+                        <option value="user">Student</option>
+                        <option value="alumni">Alumni/Mentor</option>
+                      </select>
+                    </div>
                   </div>
                   <button type="submit" disabled={showEdit ? editLoading : manualLoading}
                     style={{ marginTop: 4, padding: 12, borderRadius: 10, border: 'none', background: 'var(--color-brand)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>

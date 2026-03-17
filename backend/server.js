@@ -95,6 +95,7 @@ const reactionRoutes = require('./routes/reactions');
 const notificationRoutes = require('./routes/notifications');
 const profileRoutes = require('./routes/profile');
 const billingRoutes = require('./routes/billing');
+const featureRoutes = require('./routes/features');
 
 // ============================================
 // MOUNT ROUTES
@@ -111,6 +112,7 @@ app.use('/api/reactions', reactionRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/user/profile', profileRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/features', featureRoutes);
 
 // ============================================
 // HEALTH CHECK

@@ -11,13 +11,14 @@ interface Organization {
   logo_url?: string;
   selected_card_template?: string;
   card_back_image_url?: string;
+  custom_domain?: string;
 }
 
 interface Actor {
   id: number;
   email: string;
   name?: string;
-  role: 'super_admin' | 'admin' | 'user';
+  role: 'super_admin' | 'admin' | 'user' | 'alumni';
   org_role?: 'owner' | 'co_admin';
   organization?: Organization;
   // User-specific fields
@@ -26,6 +27,12 @@ interface Actor {
   batch_year?: number;
   avatar_url?: string;
   bio?: string;
+  linkedin_url?: string;
+  github_url?: string;
+  twitter_url?: string;
+  instagram_url?: string;
+  website_url?: string;
+  has_password?: boolean;
 }
 
 interface AuthState {

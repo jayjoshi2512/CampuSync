@@ -5,11 +5,11 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { ArrowRight, Shield, Zap, BarChart3, CreditCard, Globe, Camera } from 'lucide-react';
 
 const features = [
-  { icon: Zap, title: 'Digital Identity Cards', desc: 'Beautiful 3D interactive cards with QR codes for every student and alumnus.', color: '#7C7FFA' },
+  { icon: Zap, title: 'Digital Identity Cards', desc: 'Beautiful 3D interactive cards with QR codes for every student and alumnus.', color: '#10B981' },
   { icon: Camera, title: 'Memory Wall', desc: 'Infinite-scroll photo & video gallery — upload, react, and relive memories.', color: '#F59E0B' },
   { icon: Shield, title: 'Enterprise Security', desc: 'JWT-scoped RBAC, encrypted data, disposable email blocking, and rate limiting.', color: '#22C55E' },
   { icon: CreditCard, title: 'Flexible Billing', desc: 'Self-serve plans with Razorpay integration, trial periods, and transparent pricing.', color: '#38BDF8' },
-  { icon: BarChart3, title: 'Analytics Dashboard', desc: 'Real-time insights on engagement, scan counts, storage usage, and cohort activity.', color: '#A78BFA' },
+  { icon: BarChart3, title: 'Analytics Dashboard', desc: 'Real-time insights on engagement, scan counts, storage usage, and cohort activity.', color: '#14B8A6' },
   { icon: Globe, title: 'Public Profiles', desc: 'Each card has a unique shareable link with OG meta tags and a beautiful public page.', color: '#F87171' },
 ];
 
@@ -31,7 +31,7 @@ export default function LandingPage() {
       <nav style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
         backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-        background: 'rgba(7,9,14,0.8)',
+        background: 'color-mix(in srgb, var(--color-bg-primary) 85%, transparent)',
         borderBottom: '1px solid var(--color-border-subtle)',
         padding: '0 40px', height: 64,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -56,18 +56,18 @@ export default function LandingPage() {
       {/* ─── Hero ─── */}
       <section style={{ paddingTop: 160, paddingBottom: 100, textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
         {/* Background glow */}
-        <div style={{ position: 'absolute', top: -300, left: '50%', transform: 'translateX(-50%)', width: 900, height: 900, borderRadius: '50%', background: 'radial-gradient(circle, rgba(124,127,250,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: -300, left: '50%', transform: 'translateX(-50%)', width: 900, height: 900, borderRadius: '50%', background: 'radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
         <motion.div {...fadeUp} transition={{ duration: 0.5 }}>
           <span style={{ display: 'inline-block', padding: '6px 16px', borderRadius: 20, border: '1px solid var(--color-border-default)', background: 'var(--color-bg-secondary)', fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 500, marginBottom: 24 }}>
-            ✨ Trusted by 50+ institutions across India
+            Trusted by 50+ institutions across India
           </span>
         </motion.div>
 
         <motion.h1 {...fadeUp} transition={{ duration: 0.6, delay: 0.1 }}
           style={{ fontSize: 'clamp(36px, 5.5vw, 60px)', fontWeight: 800, color: 'var(--color-text-primary)', lineHeight: 1.1, letterSpacing: -1.5, maxWidth: 720, margin: '0 auto 20px' }}>
           The platform for{' '}
-          <span style={{ background: 'linear-gradient(135deg, #7C7FFA, #38BDF8)', backgroundClip: 'text', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <span style={{ background: 'linear-gradient(135deg, #10B981, #38BDF8)', backgroundClip: 'text', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             alumni engagement
           </span>
         </motion.h1>

@@ -51,8 +51,8 @@ export default function GlobalProgressBar() {
         style={{
           height: '100%',
           width: `${progress}%`,
-          background: 'linear-gradient(90deg, var(--color-brand), #A78BFA)',
-          boxShadow: '0 0 10px rgba(124,127,250,0.5)',
+          background: 'linear-gradient(90deg, var(--color-brand), #059669)',
+          boxShadow: '0 0 10px rgba(16,185,129,0.5)',
           transition: progress === 100 ? 'width 0.2s ease-out, opacity 0.3s' : 'width 0.3s ease-out',
           opacity: progress === 100 ? 0 : 1,
         }}
