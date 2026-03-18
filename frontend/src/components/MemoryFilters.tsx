@@ -221,13 +221,13 @@ export default function MemoryFilters({
         <div>
           <label style={labelStyle}>From Date</label>
           <div style={{ position: "relative" }}>
-          <input
-            ref={fromDateRef}
-            type="date"
-            value={fromDate}
-            onChange={(e) => handleFromDateChange(e.target.value)}
-            style={{ ...controlStyle, paddingRight: 34 }}
-          />
+            <input
+              ref={fromDateRef}
+              type="date"
+              value={fromDate}
+              onChange={(e) => handleFromDateChange(e.target.value)}
+              style={{ ...controlStyle, paddingRight: 34 }}
+            />
             <button
               type="button"
               onClick={() => openDatePicker(fromDateRef)}
@@ -256,13 +256,13 @@ export default function MemoryFilters({
         <div>
           <label style={labelStyle}>To Date</label>
           <div style={{ position: "relative" }}>
-          <input
-            ref={toDateRef}
-            type="date"
-            value={toDate}
-            onChange={(e) => handleToDateChange(e.target.value)}
-            style={{ ...controlStyle, paddingRight: 34 }}
-          />
+            <input
+              ref={toDateRef}
+              type="date"
+              value={toDate}
+              onChange={(e) => handleToDateChange(e.target.value)}
+              style={{ ...controlStyle, paddingRight: 34 }}
+            />
             <button
               type="button"
               onClick={() => openDatePicker(toDateRef)}
