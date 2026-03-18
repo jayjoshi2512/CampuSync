@@ -1,11 +1,11 @@
 // frontend/src/hooks/useMemories.ts
-import { useState, useCallback, useRef, useEffect } from 'react';
-import api from '@/utils/api';
-import { useAuthStore } from '@/store/authStore';
+import { useState, useCallback, useRef, useEffect } from "react";
+import api from "@/utils/api";
+import { useAuthStore } from "@/store/authStore";
 
 interface Memory {
   id: number;
-  media_type: 'photo' | 'video';
+  media_type: "photo" | "video";
   cloudinary_url: string;
   thumbnail_url?: string;
   caption?: string;
@@ -17,28 +17,36 @@ interface Memory {
 
 function getEndpoint() {
   const role = useAuthStore.getState().role;
-  return role === 'admin' ? '/admin/memories' : '/memories';
+  return role === "admin" ? "/admin/memories" : "/memories";
 }
 
 export function useMemories(isDemo?: boolean) {
+  const role = useAuthStore((s) => s.role);
+  const canReact = role !== "admin" && role !== "super_admin";
   const DEMO_MEMORIES: Memory[] = [
     {
-      id: 1001, media_type: 'photo',
-      cloudinary_url: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&q=80',
-      thumbnail_url: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=400&q=60',
-      caption: '🎓 Farewell day vibes! What an incredible journey.',
-      uploader: { name: 'Aarav Patel' },
-      reaction_counts: { 'heart': 12, 'flame': 5 },
-      viewer_reactions: ['heart'],
+      id: 1001,
+      media_type: "photo",
+      cloudinary_url:
+        "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&q=80",
+      thumbnail_url:
+        "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=400&q=60",
+      caption: "🎓 Farewell day vibes! What an incredible journey.",
+      uploader: { name: "Aarav Patel" },
+      reaction_counts: { "❤️": 12, "🔥": 5 },
+      viewer_reactions: ["❤️"],
       created_at: new Date(Date.now() - 86400000).toISOString(),
     },
     {
-      id: 1002, media_type: 'video',
-      cloudinary_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      thumbnail_url: 'https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=400&q=60',
-      caption: '🎬 Behind the scenes from our last group project presentation!',
-      uploader: { name: 'Priya Sharma' },
-      reaction_counts: { 'smile': 8, 'flame': 3 },
+      id: 1002,
+      media_type: "video",
+      cloudinary_url:
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+      thumbnail_url:
+        "https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=400&q=60",
+      caption: "🎬 Behind the scenes from our last group project presentation!",
+      uploader: { name: "Priya Sharma" },
+      reaction_counts: { "😂": 8, "🔥": 3 },
       viewer_reactions: [],
       created_at: new Date(Date.now() - 172800000).toISOString(),
     },
@@ -48,26 +56,35 @@ export function useMemories(isDemo?: boolean) {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const cursor = useRef<string | null>(null);
+  const [filters, setFilters] = useState<Record<string, any>>({});
 
-  const fetchMemories = useCallback(async (reset?: boolean) => {
-    if (isDemo) {
-      setMemories(DEMO_MEMORIES);
-      setHasMore(false);
-      return;
-    }
-    if (reset) cursor.current = null;
-    setLoading(true);
-    try {
-      const endpoint = getEndpoint();
-      const params: any = { limit: 20 };
-      if (cursor.current) params.cursor = cursor.current;
-      const { data } = await api.get(endpoint, { params });
-      const items = data.items || data.memories || [];
-      setMemories((prev) => cursor.current ? [...prev, ...items] : items);
-      cursor.current = data.nextCursor || null;
-      setHasMore(!!data.hasMore);
-    } catch { } finally { setLoading(false); }
-  }, [isDemo]);
+  const fetchMemories = useCallback(
+    async (reset?: boolean) => {
+      if (isDemo) {
+        setMemories(DEMO_MEMORIES);
+        setHasMore(false);
+        return;
+      }
+      if (reset) cursor.current = null;
+      setLoading(true);
+      try {
+        const endpoint = getEndpoint();
+        const params: any = { limit: 20 };
+        if (cursor.current) params.cursor = cursor.current;
+        // Add filter parameters
+        Object.assign(params, filters);
+        const { data } = await api.get(endpoint, { params });
+        const items = data.items || data.memories || [];
+        setMemories((prev) => (cursor.current ? [...prev, ...items] : items));
+        cursor.current = data.nextCursor || null;
+        setHasMore(!!data.hasMore);
+      } catch {
+      } finally {
+        setLoading(false);
+      }
+    },
+    [isDemo, filters],
+  );
 
   const addMemory = useCallback((memory: Memory) => {
     setMemories((prev) => [memory, ...prev]);
@@ -84,34 +101,69 @@ export function useMemories(isDemo?: boolean) {
     }
   }, []);
 
-  const toggleReaction = useCallback(async (memoryId: number, emoji: string) => {
-    let wasReacted = false;
-    setMemories((prev) => prev.map((m) => {
-      if (m.id !== memoryId) return m;
-      const hasReaction = m.viewer_reactions?.includes(emoji);
-      wasReacted = !!hasReaction;
-      const newCount = Math.max(0, (m.reaction_counts?.[emoji] || 0) + (hasReaction ? -1 : 1));
-      return {
-        ...m,
-        viewer_reactions: hasReaction
-          ? (m.viewer_reactions || []).filter((e) => e !== emoji)
-          : [...(m.viewer_reactions || []), emoji],
-        reaction_counts: {
-          ...m.reaction_counts,
-          [emoji]: newCount,
-        },
-      };
-    }));
-    if (!isDemo) {
-      try {
-        if (wasReacted) {
-          await api.delete(`/reactions/${memoryId}/reactions/${encodeURIComponent(emoji)}`);
-        } else {
-          await api.post(`/reactions/${memoryId}/reactions`, { emoji });
+  const toggleReaction = useCallback(
+    async (memoryId: number, emoji: string) => {
+      if (!canReact && !isDemo) return;
+
+      const previous = memories;
+      let wasReacted = false;
+      setMemories((prev) =>
+        prev.map((m) => {
+          if (m.id !== memoryId) return m;
+          const hasReaction = m.viewer_reactions?.includes(emoji);
+          wasReacted = !!hasReaction;
+          const newCount = Math.max(
+            0,
+            (m.reaction_counts?.[emoji] || 0) + (hasReaction ? -1 : 1),
+          );
+          return {
+            ...m,
+            viewer_reactions: hasReaction
+              ? (m.viewer_reactions || []).filter((e) => e !== emoji)
+              : [...(m.viewer_reactions || []), emoji],
+            reaction_counts: {
+              ...m.reaction_counts,
+              [emoji]: newCount,
+            },
+          };
+        }),
+      );
+      if (!isDemo) {
+        try {
+          let data;
+          if (wasReacted) {
+            const res = await api.delete(
+              `/reactions/${memoryId}/reactions/${encodeURIComponent(emoji)}`,
+            );
+            data = res.data;
+          } else {
+            const res = await api.post(`/reactions/${memoryId}/reactions`, {
+              emoji,
+            });
+            data = res.data;
+          }
+          if (data?.reaction_counts) {
+            setMemories((prev) =>
+              prev.map((m) =>
+                m.id === memoryId
+                  ? {
+                      ...m,
+                      reaction_counts: data.reaction_counts,
+                      viewer_reactions:
+                        data.viewer_reactions || m.viewer_reactions,
+                    }
+                  : m,
+              ),
+            );
+          }
+        } catch {
+          // Rollback optimistic update on API failure.
+          setMemories(previous);
         }
-      } catch { }
-    }
-  }, [isDemo]);
+      }
+    },
+    [canReact, isDemo, memories],
+  );
 
   // Background polling for real-time reactions and new memories
   useEffect(() => {
@@ -119,17 +171,23 @@ export function useMemories(isDemo?: boolean) {
     const interval = setInterval(async () => {
       try {
         const endpoint = getEndpoint();
-        const { data } = await api.get(endpoint, { params: { limit: 20 } });
+        const { data } = await api.get(endpoint, {
+          params: { limit: 20, ...filters },
+        });
         const items = data.items || data.memories || [];
         setMemories((prev) => {
           const newMemories = [...prev];
           let changed = false;
           items.forEach((item: Memory) => {
-            const idx = newMemories.findIndex(m => m.id === item.id);
+            const idx = newMemories.findIndex((m) => m.id === item.id);
             if (idx >= 0) {
               // Update reactions if changed
-              if (JSON.stringify(newMemories[idx].reaction_counts) !== JSON.stringify(item.reaction_counts) ||
-                  JSON.stringify(newMemories[idx].viewer_reactions) !== JSON.stringify(item.viewer_reactions)) {
+              if (
+                JSON.stringify(newMemories[idx].reaction_counts) !==
+                  JSON.stringify(item.reaction_counts) ||
+                JSON.stringify(newMemories[idx].viewer_reactions) !==
+                  JSON.stringify(item.viewer_reactions)
+              ) {
                 newMemories[idx] = {
                   ...newMemories[idx],
                   reaction_counts: item.reaction_counts,
@@ -152,7 +210,32 @@ export function useMemories(isDemo?: boolean) {
       }
     }, 10000); // 10 seconds
     return () => clearInterval(interval);
-  }, [isDemo]);
+  }, [isDemo, filters]);
+  const setFiltersAndFetch = useCallback((newFilters: Record<string, any>) => {
+    setFilters(newFilters);
+    cursor.current = null;
+    setMemories([]);
+    setHasMore(true);
+  }, []);
 
-  return { memories, loading, hasMore, fetchMemories, addMemory, deleteMemory, toggleReaction };
+  const resetFilters = useCallback(() => {
+    setFilters({});
+    cursor.current = null;
+    setMemories([]);
+    setHasMore(true);
+  }, []);
+
+  return {
+    memories,
+    loading,
+    hasMore,
+    fetchMemories,
+    addMemory,
+    deleteMemory,
+    toggleReaction,
+    canReact,
+    filters,
+    setFiltersAndFetch,
+    resetFilters,
+  };
 }

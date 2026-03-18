@@ -324,7 +324,47 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 
 -- =============================================================
--- 10. PAYMENTS
+-- 10A. ALUMNI REQUESTS
+--     Public or existing-user requests to gain alumni access.
+-- =============================================================
+CREATE TABLE IF NOT EXISTS alumni_requests (
+  id              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+  organization_id INT UNSIGNED    NOT NULL,
+  user_id         INT UNSIGNED    NULL      DEFAULT NULL,
+  name            VARCHAR(255)    NOT NULL,
+  email           VARCHAR(255)    NOT NULL,
+  branch          VARCHAR(150)    NULL      DEFAULT NULL,
+  batch_year      INT             NULL      DEFAULT NULL,
+  linkedin_url    VARCHAR(512)    NULL      DEFAULT NULL,
+  reason          TEXT            NULL      DEFAULT NULL,
+  status          ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  rejection_reason VARCHAR(500)   NULL      DEFAULT NULL,
+  reviewed_by     INT UNSIGNED    NULL      DEFAULT NULL,
+  reviewed_at     DATETIME        NULL      DEFAULT NULL,
+  is_active       TINYINT(1)      NOT NULL  DEFAULT 1,
+  created_at      DATETIME        NOT NULL  DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME        NOT NULL  DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  INDEX idx_alumni_req_org (organization_id),
+  INDEX idx_alumni_req_user (user_id),
+  INDEX idx_alumni_req_email (email),
+  INDEX idx_alumni_req_status (status),
+  INDEX idx_alumni_req_active (is_active),
+  CONSTRAINT fk_alumni_req_org
+    FOREIGN KEY (organization_id) REFERENCES organizations(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_alumni_req_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_alumni_req_reviewer
+    FOREIGN KEY (reviewed_by) REFERENCES admins(id)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- =============================================================
+-- 11. PAYMENTS
 --     Razorpay transaction log. One row per captured/failed event.
 --     amounts stored in paise (₹1 = 100 paise).
 -- =============================================================
@@ -355,7 +395,7 @@ CREATE TABLE IF NOT EXISTS payments (
 
 
 -- =============================================================
--- 11. AUDIT LOGS
+-- 12. AUDIT LOGS
 --     Append-only log of all significant system actions.
 --     No defaultScope is_active filter — never soft-deleted
 --     by the application. Only Super Admin purge can hard-delete.

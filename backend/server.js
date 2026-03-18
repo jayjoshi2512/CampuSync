@@ -23,31 +23,31 @@ app.set('trust proxy', 1);
 // SECURITY HEADERS
 // ============================================
 app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
-  crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+    crossOriginEmbedderPolicy: false,
 }));
 
 // ============================================
 // CORS
 // ============================================
 const allowedOrigins = [
-  process.env.APP_BASE_URL || 'http://localhost:5173',
-  'http://localhost:5173',
-  'http://localhost:5174',
+    process.env.APP_BASE_URL || 'http://localhost:5173',
+    'http://localhost:5173',
+    'http://localhost:5174',
 ].filter(Boolean);
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (server-to-server, mobile apps, curl)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: function(origin, callback) {
+        // Allow requests with no origin (server-to-server, mobile apps, curl)
+        if(!origin) return callback(null, true);
+        if(allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: [ 'GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS' ],
+    allowedHeaders: [ 'Content-Type', 'Authorization' ],
 }));
 
 // ============================================
@@ -55,8 +55,8 @@ app.use(cors({
 // Requires raw body for signature verification
 // ============================================
 app.post('/api/billing/webhook',
-  express.raw({ type: 'application/json' }),
-  handleWebhook
+    express.raw({ type: 'application/json' }),
+    handleWebhook
 );
 
 // ============================================
@@ -69,16 +69,19 @@ app.use(cookieParser());
 // ============================================
 // LOGGING
 // ============================================
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
+if(process.env.NODE_ENV === 'development') {
+    app.use(morgan('dev'));
 } else {
-  app.use(morgan('combined'));
+    app.use(morgan('combined'));
 }
 
 // ============================================
-// RATE LIMITING (general)
+// RATE LIMITING (general — SSE stream is exempt, persistent connections must not burn the quota)
 // ============================================
-app.use('/api', generalApi);
+app.use('/api', (req, res, next) => {
+    if(req.path === '/notifications/stream') return next();
+    return generalApi(req, res, next);
+});
 
 // ============================================
 // IMPORT ROUTES
@@ -118,72 +121,72 @@ app.use('/api/features', featureRoutes);
 // HEALTH CHECK
 // ============================================
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    uptime: process.uptime(),
-  });
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+        uptime: process.uptime(),
+    });
 });
 
 // ============================================
 // 404 HANDLER
 // ============================================
 app.use((req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Route ${req.method} ${req.originalUrl} not found.`,
-  });
+    res.status(404).json({
+        error: 'Not Found',
+        message: `Route ${ req.method } ${ req.originalUrl } not found.`,
+    });
 });
 
 // ============================================
 // GLOBAL ERROR HANDLER
 // ============================================
 app.use((err, req, res, next) => {
-  logger.error('Unhandled error:', {
-    message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-    path: req.originalUrl,
-    method: req.method,
-  });
+    logger.error('Unhandled error:', {
+        message: err.message,
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+        path: req.originalUrl,
+        method: req.method,
+    });
 
-  if (err.message === 'Not allowed by CORS') {
-    return res.status(403).json({ error: 'CORS: Origin not allowed.' });
-  }
+    if(err.message === 'Not allowed by CORS') {
+        return res.status(403).json({ error: 'CORS: Origin not allowed.' });
+    }
 
-  res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error.',
-  });
+    res.status(err.status || 500).json({
+        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error.',
+    });
 });
 
 // ============================================
 // DATABASE SYNC + SERVER START
 // ============================================
-async function startServer() {
-  try {
-    // Test database connection
-    await sequelize.authenticate();
-    logger.info('Database: Connection established successfully.');
+async function startServer () {
+    try {
+        // Test database connection
+        await sequelize.authenticate();
+        logger.info('Database: Connection established successfully.');
 
-    // Sync models in development (creates tables if they don't exist)
-    if (process.env.NODE_ENV === 'development') {
-      // Import models to trigger associations
-      require('./models');
-      await sequelize.sync({ alter: false });
-      logger.info('Database: Models synchronized.');
+        // Sync models in development (creates tables if they don't exist)
+        if(process.env.NODE_ENV === 'development') {
+            // Import models to trigger associations
+            require('./models');
+            await sequelize.sync({ alter: false });
+            logger.info('Database: Models synchronized.');
+        }
+
+        app.listen(PORT, () => {
+            logger.info(`🚀 Server running on http://localhost:${ PORT }`);
+            logger.info(`   Environment: ${ process.env.NODE_ENV || 'development' }`);
+            logger.info(`   Frontend:    ${ process.env.APP_BASE_URL || 'http://localhost:5173' }`);
+            logger.info(`   Health:      http://localhost:${ PORT }/api/health`);
+        });
+    } catch(err) {
+        logger.error('Failed to start server:', err.message);
+        logger.error(err.stack);
+        process.exit(1);
     }
-
-    app.listen(PORT, () => {
-      logger.info(`🚀 Server running on http://localhost:${PORT}`);
-      logger.info(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-      logger.info(`   Frontend:    ${process.env.APP_BASE_URL || 'http://localhost:5173'}`);
-      logger.info(`   Health:      http://localhost:${PORT}/api/health`);
-    });
-  } catch (err) {
-    logger.error('Failed to start server:', err.message);
-    logger.error(err.stack);
-    process.exit(1);
-  }
 }
 
 startServer();

@@ -15,6 +15,7 @@ const Notification = require('./Notification');
 const Payment = require('./Payment');
 const AuditLog = require('./AuditLog');
 const CardScanEvent = require('./CardScanEvent');
+const AlumniRequest = require('./AlumniRequest');
 
 // ============================================
 // ASSOCIATIONS
@@ -67,18 +68,27 @@ Organization.hasMany(Payment, { foreignKey: 'organization_id' });
 CardScanEvent.belongsTo(Card, { foreignKey: 'card_id' });
 Card.hasMany(CardScanEvent, { foreignKey: 'card_id' });
 
+// AlumniRequest associations
+AlumniRequest.belongsTo(Organization, { foreignKey: 'organization_id' });
+Organization.hasMany(AlumniRequest, { foreignKey: 'organization_id' });
+AlumniRequest.belongsTo(User, { foreignKey: 'user_id', as: 'requester' });
+User.hasMany(AlumniRequest, { foreignKey: 'user_id', as: 'alumniRequests' });
+AlumniRequest.belongsTo(Admin, { foreignKey: 'reviewed_by', as: 'reviewer' });
+Admin.hasMany(AlumniRequest, { foreignKey: 'reviewed_by', as: 'reviewedAlumniRequests' });
+
 module.exports = {
-  sequelize,
-  SuperAdmin,
-  Organization,
-  OrgRegistration,
-  Admin,
-  User,
-  Card,
-  Memory,
-  MemoryReaction,
-  Notification,
-  Payment,
-  AuditLog,
-  CardScanEvent,
+    sequelize,
+    SuperAdmin,
+    Organization,
+    OrgRegistration,
+    Admin,
+    User,
+    Card,
+    Memory,
+    MemoryReaction,
+    Notification,
+    Payment,
+    AuditLog,
+    CardScanEvent,
+    AlumniRequest,
 };

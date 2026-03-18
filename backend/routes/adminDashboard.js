@@ -28,5 +28,8 @@ router.patch('/memories/:id/flag', controller.flagMemory);
 router.delete('/memories/:id', controller.deleteMemory);
 router.post('/announce', announcement, controller.announce);
 router.post('/co-admins/invite', coAdminInvite, controller.inviteCoAdmin);
+router.get('/alumni-requests', controller.getAlumniRequests);
+router.patch('/alumni-requests/:id/approve', controller.approveAlumniRequest);
+router.patch('/alumni-requests/:id/reject', controller.rejectAlumniRequest);
 
 module.exports = router;

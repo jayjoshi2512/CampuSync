@@ -1,7 +1,15 @@
 // frontend/src/components/CardViewer.tsx
 // Required: npm install qrcode @types/qrcode
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Eye, Smartphone, Download, Share2, CornerUpRight, GraduationCap } from "lucide-react";
+import {
+  Eye,
+  Smartphone,
+  Download,
+  Share2,
+  CornerUpRight,
+  GraduationCap,
+  RefreshCcw,
+} from "lucide-react";
 import { motion, useSpring, useMotionValue, useTransform } from "framer-motion";
 import QRCodeLib from "qrcode";
 
@@ -114,6 +122,7 @@ export interface CardData {
   card_back_image_url?: string;
   tagline?: string;
   qr_hash?: string;
+  user_id?: number;
 }
 
 interface CardViewerProps {
@@ -155,9 +164,11 @@ export default function CardViewer({
 
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   useEffect(() => {
-    const qrValue = card.qr_hash
-      ? `${window.location.origin}/qr/${card.qr_hash}`
-      : `${window.location.origin}/portal?user=${encodeURIComponent(card.name || "")}`;
+    const qrValue = card.user_id
+      ? `${window.location.origin}/memories/${card.user_id}`
+      : card.qr_hash
+        ? `${window.location.origin}/qr/${card.qr_hash}`
+        : `${window.location.origin}/portal`;
     QRCodeLib.toDataURL(qrValue, {
       width: 256,
       margin: 1,
@@ -167,7 +178,7 @@ export default function CardViewer({
       .then(setQrDataUrl)
       .catch(console.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card.qr_hash, card.name]);
+  }, [card.user_id, card.qr_hash]);
 
   const [isFlipped, setIsFlipped] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -1856,62 +1867,7 @@ export default function CardViewer({
                     )}
                   </div>
 
-                  {/* CTA — block flex row, no inline-flex/alignSelf (html2canvas-safe) */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: `${sc(4)}px ${sc(10)}px`,
-                        border: `${sc(0.5)}px solid ${template.accent}44`,
-                        borderRadius: sc(
-                          s === "neon" || s === "solar" || s === "aurora"
-                            ? 3
-                            : 20,
-                        ),
-                        background: `${template.accent}08`,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: fs.cta,
-                          color: template.accent,
-                          fontFamily: template.monoFont,
-                          fontWeight: 400,
-                          lineHeight: 1,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          letterSpacing: `${sc(s === "obsidian" ? 1.5 : 0.5)}px`,
-                          textTransform:
-                            s === "obsidian" ? "uppercase" : "none",
-                        }}
-                      >
-                        {s === "obsidian"
-                          ? "View Memories"
-                          : s === "aurora"
-                            ? "Access Vault →"
-                            : s === "crimson"
-                              ? "Open Memories"
-                              : s === "solar"
-                                ? "Decrypt →"
-                                : s === "deepspace"
-                                  ? "Launch Portal →"
-                                  : s === "ivory"
-                                    ? "Reveal Memories"
-                                    : s === "neon"
-                                      ? "RUN ./memories"
-                                      : "ghost.access →"}
-                      </span>
-                    </div>
-                  </div>
+                  {/* CTA removed — not needed on exported card */}
                 </div>
 
                 {/* DIVIDER */}
@@ -2124,9 +2080,12 @@ export default function CardViewer({
             cursor: "pointer",
             fontWeight: 500,
             transition: "all 0.2s",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
           }}
         >
-          🔄 {isFlipped ? "Show Front" : "Flip Card"}
+          <RefreshCcw size={13} /> {isFlipped ? "Show Front" : "Flip Card"}
         </button>
       )}
     </div>
