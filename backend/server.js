@@ -172,6 +172,10 @@ async function startServer () {
         // Import all models to ensure schemas are registered
         require('./src/modules/models');
 
+        // Run SuperAdmin Seeder
+        const seedSuperAdmin = require('./src/utils/seedSuperAdmin');
+        await seedSuperAdmin();
+
         app.listen(PORT, () => {
             logger.info(`🚀 Server running on http://localhost:${ PORT }`);
             logger.info(`   Environment: ${ process.env.NODE_ENV || 'development' }`);
