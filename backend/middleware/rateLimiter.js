@@ -51,7 +51,7 @@ const registerSubmit = createLimiter({
 // Super Admin
 const superAdminRequestOtp = createLimiter({
     windowMs: 15 * 60 * 1000,  // 15 min
-    max: 3,
+    max: 20,
     message: 'Too many OTP requests. Try again later.',
     keyGenerator: (req) => req.ip,
 });

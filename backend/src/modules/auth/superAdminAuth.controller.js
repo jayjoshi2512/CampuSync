@@ -47,7 +47,7 @@ async function requestOtp(req, res) {
 
     // Check rate limit at app level
     const otpCount = await redis.get(`sa_otp_count:${email}`);
-    if (otpCount && parseInt(otpCount) >= 3) {
+    if (otpCount && parseInt(otpCount) >= 20) {
       return res.status(429).json({ error: 'Too many code requests. Try again later.' });
     }
 
