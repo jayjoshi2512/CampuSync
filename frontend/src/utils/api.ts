@@ -50,16 +50,22 @@ api.interceptors.response.use(
     const isLoginEndpoint = url.includes('/login') || url.includes('/verify-magic-link');
 
     if (error.response?.status === 401 && !isLoginEndpoint) {
-      const { clearAuth, role } = useAuthStore.getState();
+      const { clearAuth, role, token } = useAuthStore.getState();
+      
+      if (token?.startsWith('demo_')) {
+        return Promise.reject(error);
+      }
+
       clearAuth();
 
       // Redirect to appropriate login page
       const loginPaths: Record<string, string> = {
         super_admin: '/super-admin',
         admin: '/admin/login',
-        user: '/portal',
+        user: '/login', // Fallback to /login instead of /portal
+        alumni: '/login',
       };
-      const loginPath = loginPaths[role || ''] || '/';
+      const loginPath = loginPaths[role || ''] || '/login';
       if (window.location.pathname !== loginPath) {
         window.location.href = loginPath;
       }

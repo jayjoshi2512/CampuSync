@@ -130,8 +130,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ toast: addToast }}>
       {children}
       <div style={{
-        position: 'fixed', bottom: 24, right: 24, zIndex: 10000,
-        display: 'flex', flexDirection: 'column-reverse', gap: 8,
+        position: 'fixed', top: 24, right: 24, zIndex: 10000,
+        display: 'flex', flexDirection: 'column', gap: 8,
         pointerEvents: 'none',
       }}>
         <AnimatePresence mode="popLayout">

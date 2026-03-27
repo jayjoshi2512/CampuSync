@@ -8,7 +8,7 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 
 const { sequelize, logger } = require('./config/database');
-const { handleWebhook } = require('./controllers/billing');
+const { handleWebhook } = require('./src/modules/billing/billing.controller');
 const { generalApi } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -86,19 +86,19 @@ app.use('/api', (req, res, next) => {
 // ============================================
 // IMPORT ROUTES
 // ============================================
-const registrationRoutes = require('./routes/registration');
-const superAdminAuthRoutes = require('./routes/superAdminAuth');
-const superAdminDashboardRoutes = require('./routes/superAdminDashboard');
-const adminAuthRoutes = require('./routes/adminAuth');
-const adminDashboardRoutes = require('./routes/adminDashboard');
-const userAuthRoutes = require('./routes/userAuth');
-const cardRoutes = require('./routes/cards');
-const memoryRoutes = require('./routes/memories');
-const reactionRoutes = require('./routes/reactions');
-const notificationRoutes = require('./routes/notifications');
-const profileRoutes = require('./routes/profile');
-const billingRoutes = require('./routes/billing');
-const featureRoutes = require('./routes/features');
+const registrationRoutes = require('./src/modules/organizations/registration.routes');
+const superAdminAuthRoutes = require('./src/modules/auth/superAdminAuth.routes');
+const superAdminDashboardRoutes = require('./src/modules/superadmin/superAdminDashboard.routes');
+const adminAuthRoutes = require('./src/modules/auth/adminAuth.routes');
+const adminDashboardRoutes = require('./src/modules/admin/adminDashboard.routes');
+const userAuthRoutes = require('./src/modules/auth/userAuth.routes');
+const cardRoutes = require('./src/modules/cards/cards.routes');
+const memoryRoutes = require('./src/modules/memories/memories.routes');
+const reactionRoutes = require('./src/modules/memories/reactions.routes');
+const notificationRoutes = require('./src/modules/notifications/notifications.routes');
+const profileRoutes = require('./src/modules/users/profile.routes');
+const billingRoutes = require('./src/modules/billing/billing.routes');
+const featureRoutes = require('./src/modules/features/features.routes');
 
 // ============================================
 // MOUNT ROUTES
@@ -171,7 +171,7 @@ async function startServer () {
         // Sync models in development (creates tables if they don't exist)
         if(process.env.NODE_ENV === 'development') {
             // Import models to trigger associations
-            require('./models');
+            require('./src/modules/models');
             await sequelize.sync({ alter: false });
             logger.info('Database: Models synchronized.');
         }
@@ -192,3 +192,4 @@ async function startServer () {
 startServer();
 
 module.exports = app;
+

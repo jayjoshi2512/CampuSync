@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import api from "@/utils/api";
 import GlassCard from "@/components/GlassCard";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import LoadingSpinner from "@/components/layout/LoadingSpinner";
 import { useAuthStore } from "@/store/authStore";
 import { useToast } from "@/components/ToastProvider";
-import ThemeToggle from "@/components/ThemeToggle";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import { KeyRound, Sparkles, ShieldCheck } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 

@@ -3,9 +3,11 @@ import { useNavigate } from "react-router-dom";
 import api from "@/utils/api";
 import { useToast } from "@/components/ToastProvider";
 import { ArrowLeft, Users, Image, Network, ShieldCheck } from "lucide-react";
-import ThemeToggle from "@/components/ThemeToggle";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import ThemeToggle from "@/components/layout/ThemeToggle";
+import LoadingSpinner from "@/components/layout/LoadingSpinner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import AuthBrandPanel from "@/components/auth/AuthBrandPanel";
+import AuthBackButton from "@/components/auth/AuthBackButton";
 
 type Org = { id: number; name: string; slug: string };
 
@@ -140,123 +142,34 @@ export default function AlumniRegisterPage() {
         display: "flex",
       }}
     >
-      <style>{`@media(max-width:768px){.alumni-brand-panel{display:none !important;}.alumni-form-panel{flex:1 !important;}}`}</style>
+      <style>{`@media(max-width:768px){.auth-brand-panel{display:none !important;}.alumni-form-panel{flex:1 !important;}}`}</style>
 
-      <button
-        onClick={() => navigate("/login")}
-        style={{
-          position: "fixed",
-          top: 16,
-          left: 16,
-          zIndex: 120,
-          background: "none",
-          border: "none",
-          color: "var(--color-text-muted)",
-          cursor: "pointer",
-          fontSize: 13,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        <ArrowLeft size={14} /> Back to Login
-      </button>
+      <AuthBackButton to="/login" label="Back to Login" />
+
       <div style={{ position: "fixed", top: 16, right: 16, zIndex: 120 }}>
         <ThemeToggle />
       </div>
 
-      {/* Left brand panel */}
-      <div
-        className="alumni-brand-panel"
-        style={{
-          flex: "0 0 400px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          padding: 48,
-          position: "relative",
-          overflow: "hidden",
-          background:
-            "linear-gradient(145deg, var(--color-bg-secondary), var(--color-bg-primary))",
-          borderRight: "1px solid var(--color-border-subtle)",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: -80,
-            right: -80,
-            width: 260,
-            height: 260,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(99,102,241,0.07), transparent)",
-            pointerEvents: "none",
-          }}
-        />
-        <div style={{ marginBottom: 36 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>
-            <span style={{ color: "var(--color-brand)" }}>Nex</span>
-            <span style={{ color: "var(--color-text-primary)" }}>Us</span>
-          </div>
-          <h1
-            style={{
-              fontSize: 26,
-              fontWeight: 800,
-              color: "var(--color-text-primary)",
-              marginBottom: 10,
-              lineHeight: 1.2,
-            }}
-          >
-            Join your alumni network
-          </h1>
-          <p
-            style={{
-              fontSize: 14,
-              color: "var(--color-text-muted)",
-              lineHeight: 1.7,
-            }}
-          >
-            Request access to your institution's alumni portal. Once approved by
-            your admin, you'll get access to the memory wall, jobs board, and
-            mentorship network.
-          </p>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {[
-            {
-              icon: Users,
-              text: "Connect with batchmates & alumni",
-              color: "#6366F1",
-            },
-            {
-              icon: Image,
-              text: "Access the shared memory wall",
-              color: "#10B981",
-            },
-            {
-              icon: Network,
-              text: "Jobs board & mentorship network",
-              color: "#F59E0B",
-            },
-            {
-              icon: ShieldCheck,
-              text: "Verified by your institution admin",
-              color: "#38BDF8",
-            },
-          ].map((item) => (
-            <div
-              key={item.text}
-              style={{ display: "flex", alignItems: "center", gap: 12 }}
-            >
-              <item.icon size={16} color={item.color} />
-              <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-                {item.text}
-              </span>
+      <AuthBrandPanel
+        className="auth-brand-panel"
+        width={400}
+        title={
+          <>
+            <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>
+              <span style={{ color: "var(--color-brand)" }}>Nex</span>
+              <span style={{ color: "var(--color-text-primary)" }}>Us</span>
             </div>
-          ))}
-        </div>
-      </div>
+            <span>Join your alumni network</span>
+          </>
+        }
+        description="Request access to your institution's alumni portal. Once approved by your admin, you'll get access to the memory wall, jobs board, and mentorship network."
+        features={[
+          { icon: Users, text: "Connect with batchmates & alumni", color: "#6366F1" },
+          { icon: Image, text: "Access the shared memory wall", color: "#10B981" },
+          { icon: Network, text: "Jobs board & mentorship network", color: "#F59E0B" },
+          { icon: ShieldCheck, text: "Verified by your institution admin", color: "#38BDF8" },
+        ]}
+      />
 
       {/* Right: form panel */}
       <div

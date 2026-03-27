@@ -3,10 +3,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/utils/api";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import LoadingSpinner from "@/components/layout/LoadingSpinner";
 import { useAuthStore } from "@/store/authStore";
 import { useToast } from "@/components/ToastProvider";
-import ThemeToggle from "@/components/ThemeToggle";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import {
   ArrowLeft,
   Eye,
@@ -19,6 +19,8 @@ import {
   Shield,
 } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import AuthBrandPanel from "@/components/auth/AuthBrandPanel";
+import AuthBackButton from "@/components/auth/AuthBackButton";
 
 type LoginMode = "admin" | "student" | "alumni";
 
@@ -72,18 +74,17 @@ export default function Login() {
       setLoading(true);
       try {
         const { data } = await api.post("/user/login", { email, password });
-        if (data?.actor?.role === "alumni") {
-          toast(
-            "This account is alumni and can be used from the portal.",
-            "info",
-          );
-          return;
-        }
         setAuth(data.token, data.actor);
         toast("Welcome back!", "success");
-        navigate("/portal");
+        // Route alumni to alumni portal, students to student portal
+        if (data?.actor?.role === "alumni") {
+          navigate("/alumni");
+        } else {
+          navigate("/portal");
+        }
       } catch (err: any) {
         toast(err.response?.data?.error || "Login failed", "error");
+
       } finally {
         setLoading(false);
       }
@@ -145,7 +146,7 @@ export default function Login() {
           id: 1,
           name: "BITS Pilani — Farewell 2025",
           slug: "bits-pilani-2025",
-          plan: "growth",
+          plan: "demo",
           brand_color: "#10B981",
           logo_url: undefined,
         },
@@ -165,7 +166,7 @@ export default function Login() {
           id: 1,
           name: "BITS Pilani — Farewell 2025",
           slug: "bits-pilani-2025",
-          plan: "growth",
+          plan: "demo",
           brand_color: "#10B981",
           logo_url: undefined,
         },
@@ -185,7 +186,7 @@ export default function Login() {
           id: 1,
           name: "BITS Pilani — Farewell 2025",
           slug: "bits-pilani-2025",
-          plan: "growth",
+          plan: "demo",
           brand_color: "#10B981",
           logo_url: undefined,
         },
@@ -226,113 +227,24 @@ export default function Login() {
       }}
     >
       {/* Responsive: inject hide styles for left panel on mobile */}
-      <style>{`@media(max-width:768px){.login-brand-panel{display:none !important;}.login-form-panel{flex:1 !important;}}`}</style>
+      <style>{`@media(max-width:768px){.auth-brand-panel{display:none !important;}.login-form-panel{flex:1 !important;}}`}</style>
 
-      <button
-        onClick={() => navigate("/")}
-        style={{
-          position: "fixed",
-          top: 16,
-          left: 16,
-          zIndex: 120,
-          background: "none",
-          border: "none",
-          color: "var(--color-text-muted)",
-          cursor: "pointer",
-          fontSize: 13,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        <ArrowLeft size={14} /> Back
-      </button>
+      <AuthBackButton />
 
       <div style={{ position: "fixed", top: 16, right: 16, zIndex: 120 }}>
         <ThemeToggle />
       </div>
 
-      {/* Left: Brand panel */}
-      <div
-        className="login-brand-panel"
-        style={{
-          flex: "0 0 420px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          padding: 48,
-          position: "relative",
-          overflow: "hidden",
-          background:
-            "linear-gradient(145deg, var(--color-bg-secondary), var(--color-bg-primary))",
-          borderRight: "1px solid var(--color-border-subtle)",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: -100,
-            right: -100,
-            width: 300,
-            height: 300,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(16,185,129,0.06), transparent)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <div style={{ marginBottom: 32 }}>
-          <h1
-            style={{
-              fontSize: 28,
-              fontWeight: 800,
-              fontFamily: "var(--font-display)",
-              color: "var(--color-text-primary)",
-              marginBottom: 8,
-              lineHeight: 1.2,
-            }}
-          >
-            Welcome back
-          </h1>
-          <p
-            style={{
-              fontSize: 14,
-              color: "var(--color-text-muted)",
-              lineHeight: 1.6,
-            }}
-          >
-            Sign in to manage your institution's cards, memories, and student
-            engagement.
-          </p>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {[
-            {
-              icon: ShieldCheck,
-              text: "End-to-end encrypted",
-              color: "#F59E0B",
-            },
-            { icon: Zap, text: "Sub-200ms response times", color: "#F87171" },
-            {
-              icon: Shield,
-              text: "SOC 2 compliant infrastructure",
-              color: "#38BDF8",
-            },
-          ].map((item) => (
-            <div
-              key={item.text}
-              style={{ display: "flex", alignItems: "center", gap: 12 }}
-            >
-              <item.icon size={16} color={item.color} />
-              <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-                {item.text}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <AuthBrandPanel
+        className="auth-brand-panel"
+        title="Welcome back"
+        description="Sign in to manage your institution's cards, memories, and student engagement."
+        features={[
+          { icon: ShieldCheck, text: "End-to-end encrypted", color: "#F59E0B" },
+          { icon: Zap, text: "Sub-200ms response times", color: "#F87171" },
+          { icon: Shield, text: "SOC 2 compliant infrastructure", color: "#38BDF8" },
+        ]}
+      />
 
       {/* Right: Login form */}
       <div

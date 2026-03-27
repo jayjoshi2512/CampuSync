@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import api from "@/utils/api";
 import { useToast } from "@/components/ToastProvider";
-import ThemeToggle from "@/components/ThemeToggle";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 const PW_RULES = [

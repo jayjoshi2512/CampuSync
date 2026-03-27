@@ -4,6 +4,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "@/components/ToastProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import GlobalProgressBar from "@/components/GlobalProgressBar";
+import GlobalModal from "@/components/ui/GlobalModal";
 
 // Pages
 import LandingPage from "@/pages/LandingPage";
@@ -15,6 +16,7 @@ import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import AdminSetupPassword from "@/pages/AdminSetupPassword";
 import AdminDashboard from "@/pages/AdminDashboard";
 import UserPortal from "@/pages/UserPortal";
+import AlumniPortal from "@/pages/AlumniPortal";
 import UserMemoryProfile from "@/pages/UserMemoryProfile";
 import PublicCard from "@/pages/PublicCard";
 import ResetPassword from "@/pages/ResetPassword";
@@ -25,6 +27,7 @@ export default function App() {
     <HelmetProvider>
       <ToastProvider>
         <GlobalProgressBar />
+        <GlobalModal />
         <BrowserRouter>
           <Routes>
             {/* Public */}
@@ -66,10 +69,13 @@ export default function App() {
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
             </Route>
 
-            {/* User / Student / Alumni */}
+            {/* User / Alumni Portals */}
             <Route path="/portal" element={<UserPortal />} />
-            <Route path="/alumni" element={<UserPortal />} />
+            <Route path="/alumni" element={<AlumniPortal />} />
+            <Route path="/alumni-demo" element={<AlumniPortal />} />
             <Route path="/memories/:user_id" element={<UserMemoryProfile />} />
+
+
 
             {/* Catch-all */}
             <Route

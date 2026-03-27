@@ -106,6 +106,26 @@ export const TEMPLATES: Record<
     font: "'DM Sans', sans-serif",
     monoFont: "'DM Mono', monospace",
   },
+  tmpl_minimal_light: {
+    name: "Classic Ivory",
+    bg: "#F9FAFB",
+    accent: "#111827",
+    textColor: "#111827",
+    mutedColor: "rgba(17,24,39,0.5)",
+    style: "minimal_light",
+    font: "'DM Sans', sans-serif",
+    monoFont: "'DM Mono', monospace",
+  },
+  tmpl_minimal_dark: {
+    name: "Classic Charcoal",
+    bg: "#111827",
+    accent: "#F9FAFB",
+    textColor: "#F9FAFB",
+    mutedColor: "rgba(249,250,251,0.5)",
+    style: "minimal_dark",
+    font: "'DM Sans', sans-serif",
+    monoFont: "'DM Mono', monospace",
+  },
 };
 
 export interface CardData {
@@ -327,6 +347,10 @@ export default function CardViewer({
       return `0 ${r(4)} ${r(16)} rgba(0,0,0,0.95),0 ${r(16)} ${r(48)} rgba(0,0,0,0.8),0 0 0 ${r(0.5)} rgba(124,131,240,0.22),inset 0 ${r(1)} 0 rgba(124,131,240,0.07)`;
     if (s === "circuit")
       return `0 ${r(4)} ${r(16)} rgba(2,5,8,0.95),0 ${r(16)} ${r(48)} rgba(2,5,8,0.8),0 0 0 ${r(0.5)} rgba(156,184,220,0.2),inset 0 ${r(1)} 0 rgba(156,184,220,0.05)`;
+    if (s === "minimal_light")
+      return `0 ${r(4)} ${r(16)} rgba(0,0,0,0.06),0 ${r(12)} ${r(32)} rgba(0,0,0,0.04),inset 0 0 0 ${r(1)} rgba(0,0,0,0.06)`;
+    if (s === "minimal_dark")
+      return `0 ${r(4)} ${r(16)} rgba(0,0,0,0.6),0 ${r(16)} ${r(48)} rgba(0,0,0,0.4),inset 0 0 0 ${r(1)} rgba(255,255,255,0.08)`;
     return `0 ${r(16)} ${r(60)} rgba(0,0,0,0.7)`;
   };
 
@@ -486,16 +510,8 @@ export default function CardViewer({
   );
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: sc(12),
-      }}
-    >
+    <div className="flex flex-col items-center" style={{ gap: sc(12) }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,300;1,400;1,600&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
         @keyframes auroraShimmer { 0%,100%{opacity:0.5;transform:translateX(-6%)} 50%{opacity:1;transform:translateX(6%)} }
         @keyframes emeraldPulse  { 0%,100%{opacity:0.4} 50%{opacity:0.7} }
         @keyframes neonEdge      { 0%,100%{opacity:0.35} 50%{opacity:0.85} }
@@ -2070,20 +2086,8 @@ export default function CardViewer({
       {interactive && (
         <button
           onClick={flip}
-          style={{
-            padding: `${sc(7)}px ${sc(18)}px`,
-            borderRadius: sc(20),
-            border: "1px solid var(--color-border-default)",
-            background: "var(--color-bg-secondary)",
-            color: "var(--color-text-secondary)",
-            fontSize: 12,
-            cursor: "pointer",
-            fontWeight: 500,
-            transition: "all 0.2s",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-          }}
+          className="rounded-[20px] border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] text-[12px] font-medium cursor-pointer transition-all duration-200 inline-flex items-center gap-1.5"
+          style={{ padding: `${sc(7)}px ${sc(18)}px` }}
         >
           <RefreshCcw size={13} /> {isFlipped ? "Show Front" : "Flip Card"}
         </button>

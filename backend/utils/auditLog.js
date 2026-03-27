@@ -1,5 +1,5 @@
 // backend/utils/auditLog.js
-const AuditLog = require('../models/AuditLog');
+const { AuditLog } = require('../src/modules/models');
 const { logger } = require('../config/database');
 
 /**

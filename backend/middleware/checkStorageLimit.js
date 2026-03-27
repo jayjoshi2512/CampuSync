@@ -1,5 +1,5 @@
 // backend/middleware/checkStorageLimit.js
-const Organization = require('../models/Organization');
+const { Organization } = require('../src/modules/models');
 
 /**
  * Middleware that checks if the organization has exceeded its storage limit.

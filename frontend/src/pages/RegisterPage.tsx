@@ -3,10 +3,10 @@ import { useState, FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import api from "@/utils/api";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import LoadingSpinner from "@/components/layout/LoadingSpinner";
 import { useToast } from "@/components/ToastProvider";
-import OtpInput from "@/components/OtpInput";
-import ThemeToggle from "@/components/ThemeToggle";
+import OtpInput from "@/components/registration/OtpInput";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import {
   PartyPopper,
   ArrowLeft,
@@ -16,6 +16,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import AuthBrandPanel from "@/components/auth/AuthBrandPanel";
+import AuthBackButton from "@/components/auth/AuthBackButton";
 
 type Step = "form" | "verify_otp" | "success";
 
@@ -128,129 +130,34 @@ export default function RegisterPage() {
         display: "flex",
       }}
     >
-      <style>{`@media(max-width:768px){.reg-brand-panel{display:none !important;}.reg-form-panel{flex:1 !important;}}`}</style>
+      <style>{`@media(max-width:768px){.auth-brand-panel{display:none !important;}.reg-form-panel{flex:1 !important;}}`}</style>
 
-      <button
-        onClick={() => navigate("/")}
-        style={{
-          position: "fixed",
-          top: 16,
-          left: 16,
-          zIndex: 120,
-          background: "none",
-          border: "none",
-          color: "var(--color-text-muted)",
-          cursor: "pointer",
-          fontSize: 13,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        <ArrowLeft size={14} /> Back
-      </button>
+      <AuthBackButton />
+
       <div style={{ position: "fixed", top: 16, right: 16, zIndex: 120 }}>
         <ThemeToggle />
       </div>
 
-      {/* Left brand panel */}
-      <div
-        className="reg-brand-panel"
-        style={{
-          flex: "0 0 400px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          padding: 48,
-          position: "relative",
-          overflow: "hidden",
-          background:
-            "linear-gradient(145deg, var(--color-bg-secondary), var(--color-bg-primary))",
-          borderRight: "1px solid var(--color-border-subtle)",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: -80,
-            right: -80,
-            width: 260,
-            height: 260,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(16,185,129,0.07), transparent)",
-            pointerEvents: "none",
-          }}
-        />
-        <div style={{ marginBottom: 36 }}>
-          <div
-            style={{
-              fontSize: 22,
-              fontWeight: 800,
-              marginBottom: 12,
-              lineHeight: 1.1,
-            }}
-          >
-            <span style={{ color: "var(--color-brand)" }}>Nex</span>
-            <span style={{ color: "var(--color-text-primary)" }}>Us</span>
-          </div>
-          <h1
-            style={{
-              fontSize: 26,
-              fontWeight: 800,
-              color: "var(--color-text-primary)",
-              marginBottom: 10,
-              lineHeight: 1.2,
-            }}
-          >
-            Bring your institution online
-          </h1>
-          <p
-            style={{
-              fontSize: 14,
-              color: "var(--color-text-muted)",
-              lineHeight: 1.7,
-            }}
-          >
-            Register to create digital ID cards, a shared memory wall, and a
-            full alumni engagement platform for your institution.
-          </p>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {[
-            {
-              icon: Building2,
-              text: "Supports universities, schools & corporates",
-              color: "#6366F1",
-            },
-            {
-              icon: GraduationCap,
-              text: "Digital ID cards with QR-based access",
-              color: "#10B981",
-            },
-            {
-              icon: Users,
-              text: "Alumni network & memory wall included",
-              color: "#F59E0B",
-            },
-            {
-              icon: ShieldCheck,
-              text: "Review within 48 hours, no credit card needed",
-              color: "#38BDF8",
-            },
-          ].map((item) => (
-            <div
-              key={item.text}
-              style={{ display: "flex", alignItems: "center", gap: 12 }}
-            >
-              <item.icon size={16} color={item.color} />
-              <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-                {item.text}
-              </span>
+      <AuthBrandPanel
+        className="auth-brand-panel"
+        width={400}
+        title={
+          <>
+            <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, lineHeight: 1.1 }}>
+              <span style={{ color: "var(--color-brand)" }}>Nex</span>
+              <span style={{ color: "var(--color-text-primary)" }}>Us</span>
             </div>
-          ))}
-        </div>
-      </div>
+            <span>Bring your institution online</span>
+          </>
+        }
+        description="Register to create digital ID cards, a shared memory wall, and a full alumni engagement platform for your institution."
+        features={[
+          { icon: Building2, text: "Supports universities, schools & corporates", color: "#6366F1" },
+          { icon: GraduationCap, text: "Digital ID cards with QR-based access", color: "#10B981" },
+          { icon: Users, text: "Alumni network & memory wall included", color: "#F59E0B" },
+          { icon: ShieldCheck, text: "Review within 48 hours, no credit card needed", color: "#38BDF8" },
+        ]}
+      />
 
       {/* Right: form panel */}
       <div

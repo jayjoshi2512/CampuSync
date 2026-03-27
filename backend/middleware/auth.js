@@ -1,8 +1,6 @@
 // backend/middleware/auth.js
 const { verifyToken } = require('../utils/jwtFactory');
-const SuperAdmin = require('../models/SuperAdmin');
-const Admin = require('../models/Admin');
-const User = require('../models/User');
+const { SuperAdmin, Admin, User } = require('../src/modules/models');
 const redis = require('../config/redis');
 const { logger } = require('../config/database');
 

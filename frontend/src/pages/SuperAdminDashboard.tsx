@@ -9,10 +9,10 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import ThemeToggle from "@/components/ThemeToggle";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import { useAuthStore } from "@/store/authStore";
-import RegistrationQueue from "@/components/RegistrationQueue";
-import AuditLogTable from "@/components/AuditLogTable";
+import RegistrationQueue from "@/components/registration/RegistrationQueue";
+import AuditLogTable from "@/components/admin/AuditLogTable";
 import { useToast } from "@/components/ToastProvider";
 import api from "@/utils/api";
 import {
@@ -23,9 +23,12 @@ import {
   Trash2,
   Shield,
 } from "lucide-react";
-import SidebarShell from "@/components/SidebarShell";
+import SidebarShell from "@/components/layout/SidebarShell";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import NotificationBell from "@/components/NotificationBell";
+import NotificationBell from "@/components/layout/NotificationBell";
+import SuperAdminOverviewTab from "@/components/superadmin/SuperAdminOverviewTab";
+import SuperAdminOrganizationsTab from "@/components/superadmin/SuperAdminOrganizationsTab";
+import SuperAdminTrashTab from "@/components/superadmin/SuperAdminTrashTab";
 
 const TABS = [
   { key: "overview", label: "Overview", icon: BarChart3 },
@@ -155,22 +158,36 @@ export default function SuperAdminDashboard() {
           <div
             style={{
               display: "flex",
-              alignItems: "center",
+              alignItems: "flex-start",
               justifyContent: "space-between",
               gap: 8,
-              marginBottom: 10,
+              marginBottom: 14,
             }}
           >
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 800,
-                lineHeight: 1,
-                letterSpacing: -0.3,
-              }}
-            >
-              <span style={{ color: "var(--color-brand)" }}>Nex</span>
-              <span style={{ color: "var(--color-text-primary)" }}>Us</span>
+            <div>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  letterSpacing: -0.5,
+                }}
+              >
+                <span style={{ color: "var(--color-brand)" }}>Nex</span>
+                <span style={{ color: "var(--color-text-primary)" }}>Us</span>
+              </div>
+              <div
+                style={{
+                  fontSize: 10,
+                  marginTop: 3,
+                  color: "var(--color-text-muted)",
+                  letterSpacing: 1.1,
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                }}
+              >
+                Campus Memory OS
+              </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <NotificationBell />
@@ -235,103 +252,7 @@ export default function SuperAdminDashboard() {
 
         {/* ═══ OVERVIEW ═══ */}
         {tab === "overview" && (
-          <div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: 14,
-                marginBottom: 24,
-              }}
-            >
-              {stats.map((s) => (
-                <div
-                  key={s.label}
-                  style={{
-                    padding: 20,
-                    borderRadius: 12,
-                    background: "var(--color-bg-secondary)",
-                    border: "1px solid var(--color-border-subtle)",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-text-muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                      marginBottom: 6,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {s.label}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: 26,
-                      fontWeight: 800,
-                      fontFamily: "var(--font-mono)",
-                      color: s.color,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {s.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div
-              style={{
-                padding: 20,
-                borderRadius: 12,
-                background: "var(--color-bg-secondary)",
-                border: "1px solid var(--color-border-subtle)",
-              }}
-            >
-              <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
-                Registration Trend
-              </h3>
-              <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={dashboardData?.registrationTrend || []}>
-                  <defs>
-                    <linearGradient id="gR" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#22C55E" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#22C55E" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="rgba(255,255,255,0.04)"
-                  />
-                  <XAxis
-                    dataKey="day"
-                    tick={{ fill: "#888", fontSize: 10 }}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fill: "#888", fontSize: 10 }}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--color-bg-secondary)",
-                      border: "1px solid var(--color-border-default)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="count"
-                    stroke="#22C55E"
-                    strokeWidth={2}
-                    fill="url(#gR)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <SuperAdminOverviewTab stats={stats} dashboardData={dashboardData} />
         )}
 
         {/* ═══ REGISTRATIONS ═══ */}
@@ -339,253 +260,14 @@ export default function SuperAdminDashboard() {
 
         {/* ═══ ORGANIZATIONS ═══ */}
         {tab === "organizations" && (
-          <div
-            style={{
-              borderRadius: 12,
-              overflowX: "auto",
-              border: "1px solid var(--color-border-subtle)",
-              background: "var(--color-bg-secondary)",
-            }}
-          >
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 13,
-              }}
-            >
-              <thead>
-                <tr
-                  style={{
-                    borderBottom: "1px solid var(--color-border-subtle)",
-                  }}
-                >
-                  {[
-                    "Institution",
-                    "Status",
-                    "Plan",
-                    "Users",
-                    "Cards",
-                    "Storage",
-                    "Admin",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      style={{
-                        padding: "12px 14px",
-                        textAlign: "left",
-                        color: "var(--color-text-muted)",
-                        fontWeight: 600,
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {organizations.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      style={{
-                        padding: 48,
-                        textAlign: "center",
-                        color: "var(--color-text-muted)",
-                      }}
-                    >
-                      No organizations found.
-                    </td>
-                  </tr>
-                ) : (
-                  organizations.map((o: any) => (
-                    <tr
-                      key={o.id}
-                      style={{
-                        borderBottom: "1px solid var(--color-border-subtle)",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background =
-                          "var(--color-bg-tertiary)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
-                    >
-                      <td style={{ padding: "10px 14px", fontWeight: 600 }}>
-                        {o.name}
-                      </td>
-                      <td style={{ padding: "10px 14px" }}>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            padding: "2px 8px",
-                            borderRadius: 10,
-                            fontSize: 10,
-                            fontWeight: 600,
-                            background: `${STATUS_COLORS[o.status] || "#6B7280"}18`,
-                            color: STATUS_COLORS[o.status] || "#6B7280",
-                          }}
-                        >
-                          {o.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: "10px 14px" }}>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: PLAN_COLORS[o.plan] || "#6B7280",
-                          }}
-                        >
-                          {o.plan}
-                        </span>
-                      </td>
-                      <td
-                        style={{
-                          padding: "10px 14px",
-                          fontFamily: "var(--font-mono)",
-                        }}
-                      >
-                        {o.user_count ?? 0}
-                      </td>
-                      <td
-                        style={{
-                          padding: "10px 14px",
-                          fontFamily: "var(--font-mono)",
-                        }}
-                      >
-                        {o.card_count ?? 0}
-                      </td>
-                      <td
-                        style={{
-                          padding: "10px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 11,
-                        }}
-                      >
-                        {o.storage_used_gb ?? 0} GB
-                      </td>
-                      <td
-                        style={{
-                          padding: "10px 14px",
-                          fontSize: 11,
-                          color: "var(--color-text-muted)",
-                        }}
-                      >
-                        {o.admin_email || "—"}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <SuperAdminOrganizationsTab organizations={organizations} />
         )}
 
         {/* ═══ AUDIT LOG ═══ */}
         {tab === "audit" && <AuditLogTable />}
 
         {/* ═══ TRASH ═══ */}
-        {tab === "trash" && (
-          <div
-            style={{
-              borderRadius: 12,
-              overflowX: "auto",
-              border: "1px solid var(--color-border-subtle)",
-              background: "var(--color-bg-secondary)",
-            }}
-          >
-            {trashItems.length === 0 ? (
-              <div
-                style={{
-                  padding: 48,
-                  textAlign: "center",
-                  color: "var(--color-text-muted)",
-                }}
-              >
-                Trash is empty.
-              </div>
-            ) : (
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: 13,
-                }}
-              >
-                <thead>
-                  <tr
-                    style={{
-                      borderBottom: "1px solid var(--color-border-subtle)",
-                    }}
-                  >
-                    {["Type", "Name", "Deleted At", "Actions"].map((h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: "12px 14px",
-                          textAlign: "left",
-                          color: "var(--color-text-muted)",
-                          fontWeight: 600,
-                          fontSize: 11,
-                          textTransform: "uppercase",
-                          letterSpacing: 0.5,
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {trashItems.map((item: any, i: number) => (
-                    <tr
-                      key={item.id || i}
-                      style={{
-                        borderBottom: "1px solid var(--color-border-subtle)",
-                      }}
-                    >
-                      <td style={{ padding: "10px 14px" }}>{item.type}</td>
-                      <td style={{ padding: "10px 14px", fontWeight: 600 }}>
-                        {item.name}
-                      </td>
-                      <td
-                        style={{
-                          padding: "10px 14px",
-                          fontSize: 11,
-                          color: "var(--color-text-muted)",
-                        }}
-                      >
-                        {item.deleted_at
-                          ? new Date(item.deleted_at).toLocaleDateString()
-                          : "—"}
-                      </td>
-                      <td style={{ padding: "10px 14px" }}>
-                        <button
-                          style={{
-                            padding: "4px 12px",
-                            borderRadius: 6,
-                            border: "1px solid var(--color-border-default)",
-                            background: "transparent",
-                            color: "var(--color-text-muted)",
-                            cursor: "pointer",
-                            fontSize: 11,
-                          }}
-                        >
-                          Restore
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
+        {tab === "trash" && <SuperAdminTrashTab trashItems={trashItems} />}
       </div>
     </SidebarShell>
   );

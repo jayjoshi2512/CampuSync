@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "@/utils/api";
 import { useToast } from "@/components/ToastProvider";
-import MemoryWall from "@/components/MemoryWall";
-import LoadingSpinner from "@/components/LoadingSpinner";
-import ThemeToggle from "@/components/ThemeToggle";
+import MemoryWall from "@/components/memories/MemoryWall";
+import LoadingSpinner from "@/components/layout/LoadingSpinner";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import { ArrowLeft, Calendar, Briefcase } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 

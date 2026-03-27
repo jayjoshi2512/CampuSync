@@ -12,11 +12,11 @@ import {
   CartesianGrid,
 } from "recharts";
 import CardViewer, { TEMPLATES } from "@/components/CardViewer";
-import CsvImporter from "@/components/CsvImporter";
-import PlanSelector from "@/components/PlanSelector";
-import MemoryWall from "@/components/MemoryWall";
-import MemoryLightbox from "@/components/MemoryLightbox";
-import MemoryUploader from "@/components/MemoryUploader";
+import CsvImporter from "@/components/admin/CsvImporter";
+import PlanSelector from "@/components/billing/PlanSelector";
+import MemoryWall from "@/components/memories/MemoryWall";
+import MemoryLightbox from "@/components/memories/MemoryLightbox";
+import MemoryUploader from "@/components/memories/MemoryUploader";
 import { useMemories } from "@/hooks/useMemories";
 import { useAuthStore } from "@/store/authStore";
 import { AnimatePresence, motion } from "framer-motion";
@@ -45,28 +45,40 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useToast } from "@/components/ToastProvider";
-import ThemeToggle from "@/components/ThemeToggle";
-import NotificationBell from "@/components/NotificationBell";
+import ThemeToggle from "@/components/layout/ThemeToggle";
+import NotificationBell from "@/components/layout/NotificationBell";
 import api from "@/utils/api";
-import AdminEventsTab from "@/components/AdminEventsTab";
-import SidebarShell from "@/components/SidebarShell";
-import AdminJobsTab from "@/components/AdminJobsTab";
-import AdminMentorsTab from "@/components/AdminMentorsTab";
-import MemoryStatsPanel from "@/components/MemoryStatsPanel";
-import MemoryFilters from "@/components/MemoryFilters";
+import AdminEventsTab from "@/components/admin/AdminEventsTab";
+import SidebarShell from "@/components/layout/SidebarShell";
+import AdminJobsTab from "@/components/admin/AdminJobsTab";
+import AdminMentorsTab from "@/components/admin/AdminMentorsTab";
+import MemoryStatsPanel from "@/components/memories/MemoryStatsPanel";
+import MemoryFilters from "@/components/memories/MemoryFilters";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import AdminAnalyticsTab from "@/components/admin/AdminAnalyticsTab";
+import AdminCohortTab from "@/components/admin/AdminCohortTab";
+import AdminAlumniRequestsTab from "@/components/admin/AdminAlumniRequestsTab";
+import AdminMemoriesTab from "@/components/admin/AdminMemoriesTab";
+import AdminCardDesignTab from "@/components/admin/AdminCardDesignTab";
+import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
+import AdminCohortModals from "@/components/admin/AdminCohortModals";
+import { useModalStore } from "@/store/modalStore";
 
-const TABS = [
+const baseTABS = [
   { key: "analytics", label: "Analytics", icon: BarChart3 },
   { key: "cohort", label: "Cohort", icon: Users },
   { key: "alumni-requests", label: "Alumni Requests", icon: UserPlus },
   { key: "memories", label: "Memories", icon: Image },
-  { key: "events", label: "Events", icon: Calendar },
-  { key: "jobs", label: "Jobs", icon: Briefcase },
-  { key: "mentors", label: "Mentors", icon: HeartHandshake },
+];
+const midTABS = [
   { key: "card-design", label: "Card Design", icon: Palette },
   { key: "billing", label: "Billing", icon: CreditCard },
   { key: "settings", label: "Settings", icon: Settings },
+];
+const growthTABS = [
+  { key: "events", label: "Events", icon: Calendar },
+  { key: "jobs", label: "Jobs", icon: Briefcase },
+  { key: "mentors", label: "Mentors", icon: HeartHandshake },
 ];
 
 export default function AdminDashboard() {
@@ -98,6 +110,7 @@ export default function AdminDashboard() {
   const [selectedTemplate, setSelectedTemplate] =
     useState<string>("tmpl_obsidian");
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [designTab, setDesignTab] = useState<"starter" | "premium">("starter");
   const [sendingLinkFor, setSendingLinkFor] = useState<number | null>(null);
   const [sendingBulk, setSendingBulk] = useState(false);
   const [analyticsData, setAnalyticsData] = useState<any>(null);
@@ -105,6 +118,8 @@ export default function AdminDashboard() {
   const [showMemoryUploader, setShowMemoryUploader] = useState(false);
   const [alumniRequests, setAlumniRequests] = useState<any[]>([]);
   const [alumniLoading, setAlumniLoading] = useState(false);
+  const [editOrgName, setEditOrgName] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const { toast } = useToast();
   const actor = useAuthStore((s) => s.actor);
@@ -115,6 +130,16 @@ export default function AdminDashboard() {
   const orgName = actor?.organization?.name || "Organization";
   const plan = actor?.organization?.plan || "free";
 
+  useEffect(() => {
+    if (orgName && !editOrgName) setEditOrgName(orgName);
+  }, [orgName]);
+
+  const isAdminGrowth = plan === 'growth' || plan === 'demo';
+
+  const derivedTabs = isAdminGrowth 
+    ? [...baseTABS, ...growthTABS, ...midTABS] 
+    : [...baseTABS, ...midTABS, { key: "growth-header", label: "Growth Plan Features", isGroupHeader: true }, ...growthTABS];
+
   // Sync selected template from org on mount
   useEffect(() => {
     if (actor?.organization?.selected_card_template) {
@@ -122,16 +147,17 @@ export default function AdminDashboard() {
     }
   }, [actor?.organization?.selected_card_template]);
 
-  const saveCardTemplate = async () => {
+  const saveCardTemplate = async (templateKeyOverride?: string) => {
+    const templateToSave = typeof templateKeyOverride === 'string' ? templateKeyOverride : selectedTemplate;
     if (isDemo) return toast("Not available in demo", "error");
     setSavingTemplate(true);
     try {
       await api.patch("/admin/settings", {
-        selected_card_template: selectedTemplate,
+        selected_card_template: templateToSave,
       });
       useAuthStore.setState((state) => {
         if (state.actor?.organization) {
-          state.actor.organization.selected_card_template = selectedTemplate;
+          state.actor.organization.selected_card_template = templateToSave;
         }
         return { actor: state.actor };
       });
@@ -197,12 +223,45 @@ export default function AdminDashboard() {
     } catch {}
   }, [isDemo]);
 
+  const handleSaveSettings = async () => {
+    if (isDemo) return toast("Not available in demo", "error");
+    if (!editOrgName.trim()) return toast("Organization name is required", "error");
+    
+    setSavingSettings(true);
+    try {
+      const { data } = await api.patch("/admin/settings", { name: editOrgName });
+      const updatedName = data.organization?.name || editOrgName;
+      useAuthStore.setState((state) => {
+        if (state.actor?.organization) {
+          state.actor.organization.name = updatedName;
+        }
+        return { actor: { ...state.actor! } };
+      });
+      // Persist to localStorage AFTER Zustand has updated
+      const freshActor = useAuthStore.getState().actor;
+      if (freshActor) {
+        localStorage.setItem('phygital_actor', JSON.stringify(freshActor));
+      }
+      toast("Organization name updated!", "success");
+    } catch (err: any) {
+      toast(err.response?.data?.error || "Failed to save settings", "error");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+
   useEffect(() => {
     fetchCohort();
   }, [fetchCohort]);
+
+  // Poll analytics every 15 seconds to ensure real-time side nav badges
   useEffect(() => {
-    if (tab === "analytics") fetchAnalytics();
-  }, [tab, fetchAnalytics]);
+    fetchAnalytics();
+    const interval = setInterval(fetchAnalytics, 15000);
+    return () => clearInterval(interval);
+  }, [fetchAnalytics]);
+
   useEffect(() => {
     if (tab === "memories") fetchMemories();
   }, [tab, fetchMemories]);
@@ -232,8 +291,9 @@ export default function AdminDashboard() {
       if (approve) {
         await api.patch(`/admin/alumni-requests/${id}/approve`);
       } else {
-        const reason =
-          window.prompt("Reason for rejection (optional):") || undefined;
+        let reason: string | undefined;
+        const r = await useModalStore.getState().openPrompt("Reject Request", "Reason for rejection (optional):");
+        reason = r || undefined;
         await api.patch(`/admin/alumni-requests/${id}/reject`, { reason });
       }
       toast(
@@ -241,6 +301,7 @@ export default function AdminDashboard() {
         "success",
       );
       fetchAlumniRequests();
+      fetchAnalytics(); // Force badge update
     } catch (err: any) {
       toast(err.response?.data?.error || "Failed to process request", "error");
     }
@@ -302,7 +363,7 @@ export default function AdminDashboard() {
 
   const sendAllMagicLinks = async () => {
     if (isDemo) return toast("Demo mode", "error");
-    if (!window.confirm("Send magic links to all students?")) return;
+    if (!await useModalStore.getState().openConfirm("Send Magic Links", "Send magic links to all students?")) return;
     setSendingBulk(true);
     try {
       const { data } = await api.post("/admin/cohort/send-magic-links");
@@ -338,8 +399,9 @@ export default function AdminDashboard() {
   const handleDeleteStudent = async (student: any) => {
     if (isDemo) return toast("Not available in demo", "error");
     if (
-      !window.confirm(
-        `Remove "${student.name}" from the cohort? This can be undone.`,
+      !await useModalStore.getState().openConfirm(
+        "Remove Student",
+        `Remove "${student.name}" from the cohort? This can be undone.`
       )
     )
       return;
@@ -419,1037 +481,121 @@ export default function AdminDashboard() {
       )
     : cohort;
 
+  const pendingRequests = analyticsData?.pendingAlumniRequests || 0;
+  const tabsWithBadges = derivedTabs.map(t => 
+    t.key === 'alumni-requests' && pendingRequests > 0
+      ? { ...t, badge: pendingRequests }
+      : t
+  );
+
   return (
     <SidebarShell
-      tabs={TABS}
+      tabs={tabsWithBadges}
       activeTab={tab}
       onTabChange={setTab}
       header={
-        <div style={{ padding: "20px 20px 16px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 8,
-              marginBottom: 10,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 800,
-                lineHeight: 1,
-                letterSpacing: -0.3,
-              }}
-            >
-              <span style={{ color: "var(--color-brand)" }}>Nex</span>
-              <span style={{ color: "var(--color-text-primary)" }}>Us</span>
+        <div className="pt-[20px] px-[20px] pb-[16px]">
+          <div className="flex items-start justify-between gap-2 mb-[14px]">
+            <div>
+              <div className="text-[22px] font-extrabold leading-none tracking-[-0.5px]">
+                <span className="text-[var(--color-brand)]">Nex</span>
+                <span className="text-[var(--color-text-primary)]">Us</span>
+              </div>
+              <div className="text-[10px] mt-[3px] text-[var(--color-text-muted)] tracking-[1.1px] uppercase font-semibold">
+                Admin Panel
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="flex items-center gap-2">
               <NotificationBell />
               <ThemeToggle />
             </div>
           </div>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: "var(--color-text-primary)",
-              marginBottom: 2,
-              lineHeight: 1.3,
-            }}
-          >
+          <div className="text-[14px] font-bold text-[var(--color-text-primary)] mb-[2px] leading-[1.3]">
             {orgName}
           </div>
-          <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+          <div className="text-[11px] text-[var(--color-text-muted)]">
             {plan.charAt(0).toUpperCase() + plan.slice(1)} Plan
             {isDemo && (
-              <span style={{ color: "#F59E0B", marginLeft: 6 }}>Demo</span>
+              <span className="text-[#F59E0B] ml-[6px]">Demo</span>
             )}
           </div>
         </div>
       }
     >
-      <div style={{ padding: isCompactLayout ? 16 : 32 }}>
+      <div className={isCompactLayout ? "p-4" : "p-8"}>
         {/* ═══ ANALYTICS ═══ */}
         {tab === "analytics" && (
-          <div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                gap: 14,
-                marginBottom: 24,
-              }}
-            >
-              {stats.map((s) => (
-                <div
-                  key={s.label}
-                  style={{
-                    padding: 20,
-                    borderRadius: 12,
-                    background: "var(--color-bg-secondary)",
-                    border: "1px solid var(--color-border-subtle)",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-text-muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                      marginBottom: 8,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {s.label}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: 28,
-                      fontWeight: 800,
-                      fontFamily: "var(--font-mono)",
-                      color: s.color,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {s.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Storage bar */}
-            <div
-              style={{
-                padding: 20,
-                borderRadius: 12,
-                background: "var(--color-bg-secondary)",
-                border: "1px solid var(--color-border-subtle)",
-                marginBottom: 24,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: 10,
-                }}
-              >
-                <span style={{ fontSize: 13, fontWeight: 600 }}>
-                  Storage Usage
-                </span>
-                <span
-                  style={{
-                    fontSize: 12,
-                    color: "var(--color-text-muted)",
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
-                  {storageUsed} / {storageLimit} GB
-                </span>
-              </div>
-              <div
-                style={{
-                  height: 6,
-                  borderRadius: 3,
-                  background: "var(--color-bg-tertiary)",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${Math.min(storagePercent, 100)}%`,
-                    height: "100%",
-                    borderRadius: 3,
-                    background: storagePercent > 80 ? "#F87171" : "#10B981",
-                    transition: "width 0.4s",
-                  }}
-                />
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: isCompactLayout ? "1fr" : "1fr 1fr",
-                gap: 16,
-              }}
-            >
-              <div
-                style={{
-                  padding: 20,
-                  borderRadius: 12,
-                  background: "var(--color-bg-secondary)",
-                  border: "1px solid var(--color-border-subtle)",
-                }}
-              >
-                <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
-                  QR Scan Trend
-                </h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={analyticsData?.scan_trend || []}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="rgba(255,255,255,0.04)"
-                    />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fill: "#888", fontSize: 10 }}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: "#888", fontSize: 10 }}
-                      axisLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--color-bg-secondary)",
-                        border: "1px solid var(--color-border-default)",
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="scans"
-                      stroke="#10B981"
-                      strokeWidth={2}
-                      dot={{ fill: "#10B981", r: 3 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div
-                style={{
-                  padding: 20,
-                  borderRadius: 12,
-                  background: "var(--color-bg-secondary)",
-                  border: "1px solid var(--color-border-subtle)",
-                }}
-              >
-                <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
-                  Upload Trend
-                </h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={analyticsData?.upload_trend || []}>
-                    <defs>
-                      <linearGradient id="gU" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="5%"
-                          stopColor="#06B6D4"
-                          stopOpacity={0.3}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor="#06B6D4"
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="rgba(255,255,255,0.04)"
-                    />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fill: "#888", fontSize: 10 }}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: "#888", fontSize: 10 }}
-                      axisLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--color-bg-secondary)",
-                        border: "1px solid var(--color-border-default)",
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="uploads"
-                      stroke="#06B6D4"
-                      strokeWidth={2}
-                      fill="url(#gU)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <div
-                style={{
-                  padding: 20,
-                  borderRadius: 12,
-                  background: "var(--color-bg-secondary)",
-                  border: "1px solid var(--color-border-subtle)",
-                  gridColumn: "1 / -1",
-                  textAlign: "center",
-                }}
-              >
-                <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
-                  Card Scan Engagement Heatmap
-                </h3>
-                <p
-                  style={{
-                    margin: 0,
-                    color: "var(--color-text-muted)",
-                    fontSize: 12,
-                  }}
-                >
-                  No scan heatmap data available yet.
-                </p>
-              </div>
-            </div>
-          </div>
+          <AdminAnalyticsTab
+            isCompactLayout={isCompactLayout}
+            stats={stats}
+            storageUsed={storageUsed}
+            storageLimit={storageLimit}
+            storagePercent={storagePercent}
+            analyticsData={analyticsData}
+            plan={plan}
+          />
         )}
 
         {/* ═══ COHORT ═══ */}
         {tab === "cohort" && (
-          <div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: isCompactLayout ? "stretch" : "center",
-                marginBottom: 16,
-                gap: 12,
-                flexDirection: isCompactLayout ? "column" : "row",
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "center",
-                  flexDirection: isCompactLayout ? "column" : "row",
-                }}
-              >
-                <div
-                  style={{ position: "relative", maxWidth: 360, width: "100%" }}
-                >
-                  <Search
-                    size={15}
-                    style={{
-                      position: "absolute",
-                      left: 12,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      color: "var(--color-text-muted)",
-                    }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Search students..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    style={{ ...inputStyle, paddingLeft: 36, maxWidth: "100%" }}
-                  />
-                </div>
-                <div
-                  style={{ position: "relative", maxWidth: 280, width: "100%" }}
-                >
-                  <input
-                    list="admin-branch-options"
-                    type="text"
-                    placeholder="Filter by department/branch"
-                    value={branchFilter}
-                    onChange={(e) => setBranchFilter(e.target.value)}
-                    style={{ ...inputStyle }}
-                  />
-                  <datalist id="admin-branch-options">
-                    {branchOptions.map((branch) => (
-                      <option key={branch} value={branch} />
-                    ))}
-                  </datalist>
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  width: isCompactLayout ? "100%" : undefined,
-                }}
-              >
-                <button
-                  onClick={exportCohortCSV}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    padding: "8px 14px",
-                    borderRadius: 8,
-                    border: "1px solid var(--color-border-default)",
-                    background: "transparent",
-                    color: "var(--color-text-secondary)",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    flex: isCompactLayout ? "1 1 calc(50% - 4px)" : undefined,
-                  }}
-                >
-                  <Download size={14} /> Export CSV
-                </button>
-                <button
-                  onClick={() => setShowManualAdd(true)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    padding: "8px 14px",
-                    borderRadius: 8,
-                    border: "1px solid var(--color-border-default)",
-                    background: "transparent",
-                    color: "var(--color-text-secondary)",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    flex: isCompactLayout ? "1 1 calc(50% - 4px)" : undefined,
-                  }}
-                >
-                  <UserPlus size={14} /> Add
-                </button>
-                <button
-                  onClick={() => setShowCsv(true)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    padding: "8px 14px",
-                    borderRadius: 8,
-                    border: "1px solid var(--color-border-default)",
-                    background: "transparent",
-                    color: "var(--color-text-secondary)",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    flex: isCompactLayout ? "1 1 calc(50% - 4px)" : undefined,
-                  }}
-                >
-                  <Upload size={14} /> Import
-                </button>
-                <button
-                  onClick={() =>
-                    toast(
-                      "Bulk generating PDFs for all users... This will take a few minutes.",
-                      "info",
-                    )
-                  }
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    padding: "8px 14px",
-                    borderRadius: 8,
-                    border: "1px solid var(--color-border-default)",
-                    background: "transparent",
-                    color: "var(--color-text-secondary)",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    flex: isCompactLayout ? "1 1 100%" : undefined,
-                  }}
-                >
-                  <Download size={14} /> Bulk Export Cards
-                </button>
-                <button
-                  onClick={sendAllMagicLinks}
-                  disabled={sendingBulk}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "8px 14px",
-                    borderRadius: 8,
-                    border: "none",
-                    background: "var(--color-brand)",
-                    color: "#fff",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    fontWeight: 600,
-                  }}
-                >
-                  <Mail size={14} />{" "}
-                  {sendingBulk ? "Sending..." : "Send All Links"}
-                </button>
-              </div>
-            </div>
-
-            <div
-              style={{
-                borderRadius: 12,
-                overflow: "hidden",
-                border: "1px solid var(--color-border-subtle)",
-                background: "var(--color-bg-secondary)",
-              }}
-            >
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: 13,
-                }}
-              >
-                <thead>
-                  <tr
-                    style={{
-                      borderBottom: "1px solid var(--color-border-subtle)",
-                    }}
-                  >
-                    <th
-                      onClick={() => handleSort("name")}
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "left",
-                        color: "var(--color-text-muted)",
-                        fontWeight: 600,
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Student {getSortIcon("name")}
-                    </th>
-                    <th
-                      onClick={() => handleSort("roll_number")}
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "left",
-                        color: "var(--color-text-muted)",
-                        fontWeight: 600,
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Roll {getSortIcon("roll_number")}
-                    </th>
-                    <th
-                      onClick={() => handleSort("branch")}
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "left",
-                        color: "var(--color-text-muted)",
-                        fontWeight: 600,
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Branch {getSortIcon("branch")}
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "center",
-                        color: "var(--color-text-muted)",
-                        fontWeight: 600,
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Role
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 16px",
-                        textAlign: "right",
-                        color: "var(--color-text-muted)",
-                        fontWeight: 600,
-                        fontSize: 11,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        style={{
-                          padding: 48,
-                          textAlign: "center",
-                          color: "var(--color-text-muted)",
-                        }}
-                      >
-                        Loading cohort...
-                      </td>
-                    </tr>
-                  ) : displayedCohort.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        style={{
-                          padding: 48,
-                          textAlign: "center",
-                          color: "var(--color-text-muted)",
-                        }}
-                      >
-                        No students found. Import a CSV or add manually.
-                      </td>
-                    </tr>
-                  ) : (
-                    displayedCohort.map((s: any) => (
-                      <tr
-                        key={s.id}
-                        style={{
-                          borderBottom: "1px solid var(--color-border-subtle)",
-                          transition: "background 0.1s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background =
-                            "var(--color-bg-tertiary)")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = "transparent")
-                        }
-                      >
-                        <td style={{ padding: "10px 16px" }}>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>
-                            {s.name}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: "var(--color-text-muted)",
-                            }}
-                          >
-                            {s.email}
-                          </div>
-                        </td>
-                        <td
-                          style={{
-                            padding: "10px 16px",
-                            fontFamily: "var(--font-mono)",
-                            fontSize: 12,
-                          }}
-                        >
-                          {s.roll_number || "—"}
-                        </td>
-                        <td style={{ padding: "10px 16px" }}>
-                          {s.branch || "—"}
-                        </td>
-                        <td
-                          style={{ padding: "10px 16px", textAlign: "center" }}
-                        >
-                          <span
-                            style={{
-                              padding: "2px 8px",
-                              borderRadius: 10,
-                              fontSize: 10,
-                              fontWeight: 600,
-                              background:
-                                s.role === "alumni"
-                                  ? "rgba(16,185,129,0.15)"
-                                  : "rgba(99,102,241,0.15)",
-                              color:
-                                s.role === "alumni" ? "#10B981" : "#6366F1",
-                            }}
-                          >
-                            {s.role === "alumni" ? "Alumni" : "Student"}
-                          </span>
-                        </td>
-                        <td
-                          style={{ padding: "10px 16px", textAlign: "right" }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 6,
-                              justifyContent: "flex-end",
-                            }}
-                          >
-                            <button
-                              disabled={sendingLinkFor === s.id}
-                              onClick={() => sendMagicLink(s.id)}
-                              style={{
-                                padding: "6px 10px",
-                                borderRadius: 6,
-                                border: "1px solid var(--color-border-default)",
-                                background: "transparent",
-                                color: "var(--color-text-muted)",
-                                cursor: "pointer",
-                                fontSize: 11,
-                                display: "flex",
-                                alignItems: "center",
-                              }}
-                            >
-                              {sendingLinkFor === s.id ? (
-                                <span
-                                  style={{
-                                    width: 14,
-                                    height: 14,
-                                    border:
-                                      "2px solid var(--color-border-default)",
-                                    borderTopColor: "var(--color-brand)",
-                                    borderRadius: "50%",
-                                    animation: "spin 1s linear infinite",
-                                    display: "block",
-                                  }}
-                                />
-                              ) : (
-                                "Mail"
-                              )}
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditData(s);
-                                setShowEdit(true);
-                              }}
-                              style={{
-                                padding: "6px 10px",
-                                borderRadius: 6,
-                                border: "1px solid var(--color-border-default)",
-                                background: "transparent",
-                                color: "var(--color-text-muted)",
-                                cursor: "pointer",
-                                fontSize: 11,
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteStudent(s)}
-                              style={{
-                                padding: 6,
-                                borderRadius: 6,
-                                border: "1px solid rgba(248,113,113,0.3)",
-                                background: "transparent",
-                                color: "#F87171",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                              }}
-                              title="Remove student"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-              {totalPages > 1 && (
-                <div
-                  style={{
-                    padding: 12,
-                    borderTop: "1px solid var(--color-border-subtle)",
-                    display: "flex",
-                    gap: 4,
-                    justifyContent: "center",
-                  }}
-                >
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                    (p) => (
-                      <button
-                        key={p}
-                        onClick={() => setPage(p)}
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 6,
-                          border: "none",
-                          cursor: "pointer",
-                          background:
-                            page === p ? "var(--color-brand)" : "transparent",
-                          color:
-                            page === p ? "#fff" : "var(--color-text-muted)",
-                          fontSize: 12,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {p}
-                      </button>
-                    ),
-                  )}
-                </div>
-              )}
-            </div>
-            <AnimatePresence>
-              {showCsv && (
-                <CsvImporter
-                  onClose={() => setShowCsv(false)}
-                  isDemo={isDemo}
-                />
-              )}
-            </AnimatePresence>
-          </div>
+          <AdminCohortTab
+            isCompactLayout={isCompactLayout}
+            search={search}
+            setSearch={setSearch}
+            branchFilter={branchFilter}
+            setBranchFilter={setBranchFilter}
+            branchOptions={branchOptions}
+            exportCohortCSV={exportCohortCSV}
+            setShowManualAdd={setShowManualAdd}
+            plan={plan}
+            toast={toast}
+            setShowCsv={setShowCsv}
+            sendingBulk={sendingBulk}
+            sendAllMagicLinks={sendAllMagicLinks}
+            handleSort={handleSort}
+            getSortIcon={getSortIcon}
+            loading={loading}
+            displayedCohort={displayedCohort}
+            sendingLinkFor={sendingLinkFor}
+            sendMagicLink={sendMagicLink}
+            setEditData={setEditData}
+            setShowEdit={setShowEdit}
+            handleDeleteStudent={handleDeleteStudent}
+            totalPages={totalPages}
+            page={page}
+            setPage={setPage}
+            showCsv={showCsv}
+            isDemo={!!isDemo}
+          />
         )}
 
         {/* ═══ ALUMNI REQUESTS ═══ */}
         {tab === "alumni-requests" && (
-          <div
-            style={{
-              borderRadius: 12,
-              overflow: "hidden",
-              border: "1px solid var(--color-border-subtle)",
-              background: "var(--color-bg-secondary)",
-            }}
-          >
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 13,
-              }}
-            >
-              <thead>
-                <tr
-                  style={{
-                    borderBottom: "1px solid var(--color-border-subtle)",
-                  }}
-                >
-                  <th
-                    style={{
-                      padding: "12px 16px",
-                      textAlign: "left",
-                      color: "var(--color-text-muted)",
-                      fontWeight: 600,
-                      fontSize: 11,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Applicant
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 16px",
-                      textAlign: "left",
-                      color: "var(--color-text-muted)",
-                      fontWeight: 600,
-                      fontSize: 11,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Branch
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 16px",
-                      textAlign: "left",
-                      color: "var(--color-text-muted)",
-                      fontWeight: 600,
-                      fontSize: 11,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Batch
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 16px",
-                      textAlign: "left",
-                      color: "var(--color-text-muted)",
-                      fontWeight: 600,
-                      fontSize: 11,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Reason
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 16px",
-                      textAlign: "right",
-                      color: "var(--color-text-muted)",
-                      fontWeight: 600,
-                      fontSize: 11,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {alumniLoading ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      style={{
-                        padding: 40,
-                        textAlign: "center",
-                        color: "var(--color-text-muted)",
-                      }}
-                    >
-                      Loading alumni requests...
-                    </td>
-                  </tr>
-                ) : alumniRequests.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      style={{
-                        padding: 40,
-                        textAlign: "center",
-                        color: "var(--color-text-muted)",
-                      }}
-                    >
-                      No pending alumni requests.
-                    </td>
-                  </tr>
-                ) : (
-                  alumniRequests.map((r) => (
-                    <tr
-                      key={r.id}
-                      style={{
-                        borderBottom: "1px solid var(--color-border-subtle)",
-                      }}
-                    >
-                      <td style={{ padding: "10px 16px" }}>
-                        <div style={{ fontWeight: 600 }}>{r.name}</div>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: "var(--color-text-muted)",
-                          }}
-                        >
-                          {r.email}
-                        </div>
-                      </td>
-                      <td style={{ padding: "10px 16px" }}>
-                        {r.branch || "—"}
-                      </td>
-                      <td style={{ padding: "10px 16px" }}>
-                        {r.batch_year || "—"}
-                      </td>
-                      <td
-                        style={{
-                          padding: "10px 16px",
-                          maxWidth: 280,
-                          color: "var(--color-text-muted)",
-                        }}
-                      >
-                        {r.reason || "—"}
-                      </td>
-                      <td style={{ padding: "10px 16px", textAlign: "right" }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "flex-end",
-                            gap: 8,
-                          }}
-                        >
-                          <button
-                            onClick={() => decideAlumniRequest(r.id, true)}
-                            style={{
-                              padding: "6px 10px",
-                              borderRadius: 6,
-                              border: "none",
-                              background: "var(--color-brand)",
-                              color: "#fff",
-                              cursor: "pointer",
-                              fontSize: 11,
-                            }}
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => decideAlumniRequest(r.id, false)}
-                            style={{
-                              padding: "6px 10px",
-                              borderRadius: 6,
-                              border: "1px solid rgba(248,113,113,0.35)",
-                              background: "transparent",
-                              color: "#F87171",
-                              cursor: "pointer",
-                              fontSize: 11,
-                            }}
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <AdminAlumniRequestsTab
+            alumniLoading={alumniLoading}
+            alumniRequests={alumniRequests}
+            decideAlumniRequest={decideAlumniRequest}
+          />
         )}
 
+        {/* ═══ MEMORIES ═══ */}
         {tab === "memories" && (
-          <div style={{ paddingBottom: 100 }}>
-            <MemoryFilters
-              users={cohort}
-              branches={branchOptions}
-              onFilterChange={(filters) => {
-                setFiltersAndFetch(filters);
-              }}
-              onReset={() => {
-                resetFilters();
-              }}
-            />
-            <div style={{ marginBottom: 32 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-                Memory Statistics
-              </h2>
-              <p style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-                Overview of photos, videos, reactions, and top contributors
-              </p>
-            </div>
-            <MemoryStatsPanel />
-            <div style={{ marginTop: 40, marginBottom: 24 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-                Recent Memories
-              </h2>
-              <p style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-                View and manage the memory wall
-              </p>
-            </div>
-            <MemoryWall
-              memories={memories}
-              loading={memLoading}
-              hasMore={hasMore}
-              onLoadMore={fetchMemories}
-              onReaction={toggleReaction}
-              canReact={canReact}
-              onDeleteMemory={deleteMemory}
-              onClickMemory={(m) => setLightboxIdx(memories.indexOf(m))}
-            />
-            <button
-              onClick={() => setShowMemoryUploader(true)}
-              style={{
-                position: "fixed",
-                bottom: 24,
-                right: 24,
-                width: 50,
-                height: 50,
-                borderRadius: "50%",
-                border: "none",
-                background: "var(--color-brand)",
-                color: "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                boxShadow: "0 6px 24px rgba(16,185,129,0.45)",
-                zIndex: 50,
-              }}
-            >
-              <Plus size={22} />
-            </button>
-            <AnimatePresence>
-              {showMemoryUploader && (
-                <MemoryUploader onClose={() => setShowMemoryUploader(false)} />
-              )}
-            </AnimatePresence>
-          </div>
+          <AdminMemoriesTab
+            cohort={cohort}
+            branchOptions={branchOptions}
+            setFiltersAndFetch={setFiltersAndFetch}
+            resetFilters={resetFilters}
+            memories={memories}
+            memLoading={memLoading}
+            hasMore={hasMore}
+            fetchMemories={fetchMemories}
+            toggleReaction={toggleReaction}
+            canReact={canReact}
+            deleteMemory={deleteMemory!}
+            setLightboxIdx={setLightboxIdx}
+            showMemoryUploader={showMemoryUploader}
+            setShowMemoryUploader={setShowMemoryUploader}
+          />
         )}
 
         {/* ═══ EVENTS ═══ */}
@@ -1458,796 +604,71 @@ export default function AdminDashboard() {
         {/* ═══ JOBS ═══ */}
         {tab === "jobs" && <AdminJobsTab />}
 
-        {/* ═══ MENTORS ═══ */}
-        {tab === "mentors" && <AdminMentorsTab />}
-
         {/* ═══ CARD DESIGN ═══ */}
         {tab === "card-design" && (
-          <div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: isCompactLayout
-                  ? "1fr"
-                  : "minmax(0, 1fr) 380px",
-                gap: 24,
-                alignItems: "start",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                  gap: 20,
-                }}
-              >
-                {Object.entries(TEMPLATES).map(([key, tmpl]) => (
-                  <div
-                    key={key}
-                    onClick={() => setSelectedTemplate(key)}
-                    style={{
-                      cursor: "pointer",
-                      border:
-                        selectedTemplate === key
-                          ? `2px solid ${tmpl.accent}`
-                          : "2px solid var(--color-border-subtle)",
-                      borderRadius: 20,
-                      padding: 8,
-                      transition: "all 0.2s",
-                      background:
-                        selectedTemplate === key
-                          ? `${tmpl.accent}08`
-                          : "transparent",
-                    }}
-                  >
-                    <CardViewer
-                      card={{
-                        name: actor?.name || "Student Name",
-                        roll_number: "CS2022001",
-                        branch: "Computer Science",
-                        batch_year: 2026,
-                        org_name: orgName,
-                        template_id: key,
-                      }}
-                      compact
-                      interactive={false}
-                    />
-                    <p
-                      style={{
-                        textAlign: "center",
-                        marginTop: 8,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color:
-                          selectedTemplate === key
-                            ? tmpl.accent
-                            : "var(--color-text-muted)",
-                      }}
-                    >
-                      {tmpl.name} {selectedTemplate === key && "✓"}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* 3D Preview Panel */}
-              <div
-                style={{
-                  position: isCompactLayout ? "relative" : "sticky",
-                  top: 24,
-                  padding: 24,
-                  borderRadius: 16,
-                  background: "var(--color-bg-secondary)",
-                  border: "1px solid var(--color-border-subtle)",
-                }}
-              >
-                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>
-                  Live 3D Preview
-                </h3>
-                <div style={{ marginBottom: 24 }}>
-                  <CardViewer
-                    card={{
-                      name: actor?.name || "Student Name",
-                      roll_number: "CS2022001",
-                      branch: "Computer Science",
-                      batch_year: 2026,
-                      org_name: orgName,
-                      template_id: selectedTemplate,
-                      card_back_image_url:
-                        actor?.organization?.card_back_image_url,
-                    }}
-                    interactive={true}
-                  />
-                </div>
-                <p
-                  style={{
-                    fontSize: 11,
-                    color: "var(--color-text-muted)",
-                    textAlign: "center",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Hover over the card to see the 3D tilt effect and material
-                  finish. Click to flip instantly.
-                </p>
-              </div>
-
-              {/* Save Template Button */}
-              <button
-                onClick={saveCardTemplate}
-                disabled={
-                  savingTemplate ||
-                  selectedTemplate ===
-                    (actor?.organization?.selected_card_template ||
-                      "tmpl_obsidian")
-                }
-                style={{
-                  marginTop: 16,
-                  padding: "12px 24px",
-                  borderRadius: 10,
-                  border: "none",
-                  background:
-                    selectedTemplate ===
-                    (actor?.organization?.selected_card_template ||
-                      "tmpl_obsidian")
-                      ? "var(--color-bg-tertiary)"
-                      : "var(--color-brand)",
-                  color:
-                    selectedTemplate ===
-                    (actor?.organization?.selected_card_template ||
-                      "tmpl_obsidian")
-                      ? "var(--color-text-muted)"
-                      : "#fff",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: savingTemplate ? "wait" : "pointer",
-                  width: "100%",
-                  transition: "all 0.2s",
-                  opacity: savingTemplate ? 0.6 : 1,
-                }}
-              >
-                {savingTemplate
-                  ? "Saving..."
-                  : selectedTemplate ===
-                      (actor?.organization?.selected_card_template ||
-                        "tmpl_obsidian")
-                    ? "✓ Current Template"
-                    : "Apply Template"}
-              </button>
-            </div>
-
-            <div
-              style={{
-                marginTop: 40,
-                padding: 24,
-                borderRadius: 12,
-                background: "var(--color-bg-secondary)",
-                border: "1px solid var(--color-border-subtle)",
-              }}
-            >
-              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>
-                Brand Customization
-              </h3>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 24,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-text-muted)",
-                      display: "block",
-                      marginBottom: 6,
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Brand Color
-                  </label>
-                  <input
-                    type="color"
-                    defaultValue={actor?.organization?.brand_color || "#10B981"}
-                    style={{
-                      width: 48,
-                      height: 36,
-                      borderRadius: 8,
-                      border: "none",
-                      cursor: "pointer",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-text-muted)",
-                      display: "block",
-                      marginBottom: 6,
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Logo
-                  </label>
-                  <button
-                    style={{
-                      padding: "8px 16px",
-                      borderRadius: 8,
-                      border: "1px dashed var(--color-border-default)",
-                      background: "transparent",
-                      color: "var(--color-text-muted)",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Upload size={14} /> Upload Logo
-                  </button>
-                </div>
-                <div>
-                  <label
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-text-muted)",
-                      display: "block",
-                      marginBottom: 6,
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Card Back Image
-                  </label>
-                  <label
-                    style={{
-                      padding: "8px 16px",
-                      borderRadius: 8,
-                      border: "1px dashed var(--color-border-default)",
-                      background: "transparent",
-                      color: "var(--color-text-muted)",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <ImagePlus size={14} /> Upload Back Image
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleBackImageUpload}
-                      style={{ display: "none" }}
-                    />
-                  </label>
-                  <p
-                    style={{
-                      fontSize: 10,
-                      color: "var(--color-text-muted)",
-                      marginTop: 4,
-                    }}
-                  >
-                    This image appears on the back of all student cards (e.g.,
-                    class group photo).
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <AdminCardDesignTab
+            designTab={designTab}
+            setDesignTab={setDesignTab}
+            plan={plan}
+            selectedTemplate={selectedTemplate}
+            setSelectedTemplate={setSelectedTemplate}
+            actor={actor}
+            orgName={orgName}
+            saveCardTemplate={saveCardTemplate}
+            savingTemplate={savingTemplate}
+            toast={toast}
+            handleBackImageUpload={handleBackImageUpload}
+          />
         )}
 
         {/* ═══ BILLING ═══ */}
         {tab === "billing" && (
-          <PlanSelector currentPlan={plan} isDemo={isDemo} />
+          <PlanSelector currentPlan={plan} isDemo={isDemo} onPlanChange={(newPlan) => {
+            useAuthStore.setState((state) => {
+              if (!state.actor) return state;
+              const updatedActor = {
+                ...state.actor,
+                organization: state.actor.organization
+                  ? { ...state.actor.organization, plan: newPlan }
+                  : state.actor.organization,
+              };
+              localStorage.setItem('phygital_actor', JSON.stringify(updatedActor));
+              return { actor: updatedActor };
+            });
+          }} />
         )}
 
         {/* ═══ SETTINGS ═══ */}
         {tab === "settings" && (
-          <div style={{ maxWidth: 640, width: "100%" }}>
-            <div
-              style={{
-                padding: 24,
-                borderRadius: 12,
-                background: "var(--color-bg-secondary)",
-                border: "1px solid var(--color-border-subtle)",
-                marginBottom: 24,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  marginBottom: 24,
-                }}
-              >
-                <div
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: "50%",
-                    background:
-                      "linear-gradient(135deg, var(--color-brand), #059669)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 22,
-                    color: "#fff",
-                    fontWeight: 700,
-                  }}
-                >
-                  {orgName.charAt(0)}
-                </div>
-                <div>
-                  <h2 style={{ fontSize: 17, fontWeight: 700 }}>{orgName}</h2>
-                  <p style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                    {plan.charAt(0).toUpperCase() + plan.slice(1)} Plan{" "}
-                    {isDemo ? "(Demo)" : ""}
-                  </p>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: isCompactLayout ? "1fr" : "1fr 1fr",
-                  gap: 16,
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      fontSize: 10,
-                      color: "var(--color-text-muted)",
-                      display: "block",
-                      marginBottom: 6,
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Update Organization Name
-                  </label>
-                  <input defaultValue={orgName} style={inputStyle} />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      fontSize: 10,
-                      color: "var(--color-text-muted)",
-                      display: "block",
-                      marginBottom: 6,
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Custom Domain (White-Label)
-                  </label>
-                  <input
-                    defaultValue={actor?.organization?.custom_domain || ""}
-                    placeholder="alumni.youruniversity.edu"
-                    style={inputStyle}
-                  />
-                  <p
-                    style={{
-                      fontSize: 10,
-                      color: "var(--color-text-muted)",
-                      marginTop: 4,
-                    }}
-                  >
-                    Requires CNAME record pointing to our servers.
-                  </p>
-                </div>
-                <div style={{ marginBottom: 16 }}>
-                  <label
-                    style={{
-                      fontSize: 10,
-                      color: "var(--color-text-muted)",
-                      display: "block",
-                      marginBottom: 6,
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Contact Email
-                  </label>
-                  <div
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 8,
-                      background: "var(--color-bg-tertiary)",
-                      border: "1px solid var(--color-border-default)",
-                      fontSize: 13,
-                      color: "var(--color-text-muted)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <span>{actor?.email || ""}</span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: "var(--color-text-muted)",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      Read-only
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  marginTop: 24,
-                  paddingTop: 24,
-                  borderTop: "1px solid var(--color-border-subtle)",
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <button
-                  style={{
-                    padding: "8px 24px",
-                    borderRadius: 8,
-                    border: "none",
-                    background: "var(--color-brand)",
-                    color: "#fff",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Save Account Changes
-                </button>
-              </div>
-            </div>
-          </div>
+          <AdminSettingsTab
+            orgName={orgName}
+            plan={plan}
+            isDemo={!!isDemo}
+            isCompactLayout={isCompactLayout}
+            editOrgName={editOrgName}
+            setEditOrgName={setEditOrgName}
+            actor={actor}
+            handleSaveSettings={handleSaveSettings}
+            savingSettings={savingSettings}
+          />
         )}
 
         {/* ═══ MODALS ═══ */}
-        <AnimatePresence>
-          {(showManualAdd || showEdit) && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: "rgba(0,0,0,0.7)",
-                zIndex: 100,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 20,
-                backdropFilter: "blur(4px)",
-              }}
-            >
-              <motion.div
-                initial={{ scale: 0.95, y: 10 }}
-                animate={{ scale: 1, y: 0 }}
-                style={{
-                  width: "100%",
-                  maxWidth: 450,
-                  background: "var(--color-bg-secondary)",
-                  borderRadius: 16,
-                  border: "1px solid var(--color-border-default)",
-                  boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "16px 20px",
-                    borderBottom: "1px solid var(--color-border-subtle)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <h3 style={{ fontSize: 15, fontWeight: 700 }}>
-                    {showEdit ? "Edit Student" : "Add Student"}
-                  </h3>
-                  <button
-                    onClick={() => {
-                      setShowManualAdd(false);
-                      setShowEdit(false);
-                    }}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "var(--color-text-muted)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-                <form
-                  onSubmit={showEdit ? handleEditSubmit : handleManualAdd}
-                  style={{
-                    padding: 20,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 14,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: isCompactLayout ? "1fr" : "1fr 1fr",
-                      gap: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: "var(--color-text-muted)",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Name
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        value={(showEdit ? editData : manualData)?.name || ""}
-                        onChange={(e) =>
-                          showEdit
-                            ? setEditData({ ...editData, name: e.target.value })
-                            : setManualData({
-                                ...manualData,
-                                name: e.target.value,
-                              })
-                        }
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: "var(--color-text-muted)",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Email
-                      </label>
-                      <input
-                        required
-                        type="email"
-                        value={(showEdit ? editData : manualData)?.email || ""}
-                        onChange={(e) =>
-                          showEdit
-                            ? setEditData({
-                                ...editData,
-                                email: e.target.value,
-                              })
-                            : setManualData({
-                                ...manualData,
-                                email: e.target.value,
-                              })
-                        }
-                        style={inputStyle}
-                      />
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: isCompactLayout ? "1fr" : "1fr 1fr",
-                      gap: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: "var(--color-text-muted)",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Roll Number
-                      </label>
-                      <input
-                        type="text"
-                        value={
-                          (showEdit ? editData : manualData)?.roll_number || ""
-                        }
-                        onChange={(e) =>
-                          showEdit
-                            ? setEditData({
-                                ...editData,
-                                roll_number: e.target.value,
-                              })
-                            : setManualData({
-                                ...manualData,
-                                roll_number: e.target.value,
-                              })
-                        }
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: "var(--color-text-muted)",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Branch
-                      </label>
-                      <input
-                        type="text"
-                        value={(showEdit ? editData : manualData)?.branch || ""}
-                        onChange={(e) =>
-                          showEdit
-                            ? setEditData({
-                                ...editData,
-                                branch: e.target.value,
-                              })
-                            : setManualData({
-                                ...manualData,
-                                branch: e.target.value,
-                              })
-                        }
-                        style={inputStyle}
-                      />
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: isCompactLayout ? "1fr" : "1fr 1fr",
-                      gap: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: "var(--color-text-muted)",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Batch Year
-                      </label>
-                      <input
-                        type="number"
-                        value={
-                          (showEdit ? editData : manualData)?.batch_year || ""
-                        }
-                        onChange={(e) =>
-                          showEdit
-                            ? setEditData({
-                                ...editData,
-                                batch_year: e.target.value,
-                              })
-                            : setManualData({
-                                ...manualData,
-                                batch_year: e.target.value,
-                              })
-                        }
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: "var(--color-text-muted)",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Role
-                      </label>
-                      <select
-                        value={
-                          (showEdit ? editData : manualData)?.role || "user"
-                        }
-                        onChange={(e) =>
-                          showEdit
-                            ? setEditData({ ...editData, role: e.target.value })
-                            : setManualData({
-                                ...manualData,
-                                role: e.target.value,
-                              })
-                        }
-                        style={{ ...inputStyle, WebkitAppearance: "none" }}
-                      >
-                        <option value="user">Student</option>
-                        <option value="alumni">Alumni/Mentor</option>
-                      </select>
-                    </div>
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={showEdit ? editLoading : manualLoading}
-                    style={{
-                      marginTop: 4,
-                      padding: 12,
-                      borderRadius: 10,
-                      border: "none",
-                      background: "var(--color-brand)",
-                      color: "#fff",
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {(showEdit ? editLoading : manualLoading)
-                      ? "Saving..."
-                      : showEdit
-                        ? "Save Changes"
-                        : "Add Student"}
-                  </button>
-                </form>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <AdminCohortModals
+          showManualAdd={showManualAdd}
+          showEdit={showEdit}
+          setShowManualAdd={setShowManualAdd}
+          setShowEdit={setShowEdit}
+          manualData={manualData}
+          setManualData={setManualData}
+          editData={editData}
+          setEditData={setEditData}
+          manualLoading={manualLoading}
+          editLoading={editLoading}
+          handleManualAdd={handleManualAdd}
+          handleEditSubmit={handleEditSubmit}
+          isCompactLayout={isCompactLayout}
+        />
 
         {lightboxIdx !== null && memories[lightboxIdx] && (
           <MemoryLightbox

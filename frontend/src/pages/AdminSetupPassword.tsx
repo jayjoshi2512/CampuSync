@@ -4,7 +4,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { Check, X as XIcon, CheckCircle, KeyRound } from "lucide-react";
 import api from "@/utils/api";
 import GlassCard from "@/components/GlassCard";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import LoadingSpinner from "@/components/layout/LoadingSpinner";
 import { useToast } from "@/components/ToastProvider";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 

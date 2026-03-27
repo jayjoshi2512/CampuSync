@@ -1,4 +1,4 @@
-const Memory = require('../models/Memory');
+const { Memory } = require('../src/modules/models');
 const { Op } = require('sequelize');
 
 const FREE_LIMITS = {

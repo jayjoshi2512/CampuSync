@@ -1,5 +1,5 @@
 // backend/middleware/requireOrgActive.js
-const Organization = require('../models/Organization');
+const { Organization } = require('../src/modules/models');
 
 /**
  * Middleware that checks if the actor's organization has status 'active'.

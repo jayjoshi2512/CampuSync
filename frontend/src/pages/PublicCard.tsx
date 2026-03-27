@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import api from "@/utils/api";
 import GlassCard from "@/components/GlassCard";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import LoadingSpinner from "@/components/layout/LoadingSpinner";
 import {
   Lock,
   Twitter,
