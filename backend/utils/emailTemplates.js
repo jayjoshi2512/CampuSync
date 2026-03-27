@@ -1,6 +1,6 @@
 // backend/utils/emailTemplates.js
 
-const APP_NAME = 'NexUs';
+const APP_NAME = 'CampuSync';
 
 /**
  * Base wrapper for all email templates — responsive, dark, email-client safe

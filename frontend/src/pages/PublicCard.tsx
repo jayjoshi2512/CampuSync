@@ -264,7 +264,7 @@ export default function PublicCard() {
               color: "var(--color-text-muted)",
             }}
           >
-            Scanned {card?.scan_count || 0} times · Powered by NexUs
+            Scanned {card?.scan_count || 0} times · Powered by CampuSync
           </p>
         </GlassCard>
       </div>

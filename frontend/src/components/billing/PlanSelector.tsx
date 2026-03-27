@@ -72,7 +72,7 @@ export default function PlanSelector({ currentPlan = 'trial', isDemo, onPlanChan
       const options = {
         key: data.razorpay_key,
         subscription_id: data.subscription_id,
-        name: 'NexUs',
+        name: 'CampuSync',
         description: `Upgrade to ${planKey} plan`,
         theme: {
           color: planKey === 'starter' ? '#6366F1' : '#8B5CF6'

@@ -292,7 +292,7 @@ export default function RegisterPage() {
                   </div>
                   <div>
                     <label style={labelStyle}>
-                      Why do you want to use NexUs? (Optional)
+                      Why do you want to use CampuSync? (Optional)
                     </label>
                     <textarea
                       name="registration_reason"

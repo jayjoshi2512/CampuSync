@@ -6,11 +6,11 @@
 --  Run: mysql -u root -p < schema.sql
 -- =============================================================
 
-CREATE DATABASE IF NOT EXISTS phygital_saas
+CREATE DATABASE IF NOT EXISTS campusync
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE phygital_saas;
+USE campusync;
 
 -- =============================================================
 -- 1. SUPER ADMINS

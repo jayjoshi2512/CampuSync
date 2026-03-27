@@ -36,7 +36,7 @@ export default function LandingPage() {
         }}
       >
         <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-          © 2026 NexUs. All rights reserved.
+          © 2026 CampuSync. All rights reserved.
         </span>
         <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
           Built with ❤️ in India

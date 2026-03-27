@@ -35,7 +35,7 @@ async function sendOtp(req, res) {
         if (count === 1) await redis.expire(`reg_otp_count:${email}`, 3600);
         await redis.del(`reg_otp_attempts:${email}`);
 
-        await sendMail(email, 'Verify Your Email — NexUs', registrationOtpEmail(name, otp));
+        await sendMail(email, 'Verify Your Email — CampuSync', registrationOtpEmail(name, otp));
         logger.info(`Registration OTP sent to ${email}`);
         res.json({ message: 'Verification code sent to your email.', email });
     } catch (err) {
@@ -114,7 +114,7 @@ async function submit(req, res) {
         await redis.del(`reg_verified:${contact_email}`);
         auditLog.log('system', null, 'ORG_REGISTRATION_SUBMITTED', 'organization', org._id, { institution_name, contact_email }, req);
 
-        sendMail(contact_email, 'Application Received — NexUs', registrationReceivedEmail(contact_name, institution_name))
+        sendMail(contact_email, 'Application Received — CampuSync', registrationReceivedEmail(contact_name, institution_name))
             .catch(err => logger.error('Failed to send confirmation email:', err.message));
 
         const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
@@ -151,7 +151,7 @@ async function sendAlumniOtp(req, res) {
         await redis.set(`alumni_reg_otp:${email}`, otpHash, 900);
         await redis.del(`alumni_reg_otp_attempts:${email}`);
 
-        await sendMail(email, 'Verify Alumni Registration Email — NexUs', registrationOtpEmail(name || email.split('@')[0], otp));
+        await sendMail(email, 'Verify Alumni Registration Email — CampuSync', registrationOtpEmail(name || email.split('@')[0], otp));
         return res.json({ message: 'Verification code sent to your email.', email });
     } catch (err) {
         logger.error('sendAlumniOtp error:', err.message);
