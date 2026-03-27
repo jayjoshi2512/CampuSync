@@ -1,142 +1,94 @@
-// backend/controllers/memories.js
-const { Memory } = require('../models');
-const { MemoryReaction } = require('../models');
-const { User } = require('../models');
-const { Admin } = require('../models');
-const { SuperAdmin } = require('../models');
-const { Organization } = require('../models');
-const {
-    createUserNotification,
-    addTransientNotification,
-    emitNotificationToActor,
-} = require('../notifications/notifications.controller');
+// backend/src/modules/memories/memories.controller.js
+const { Memory, MemoryReaction, User, Admin, SuperAdmin, Organization } = require('../models');
+const { createUserNotification, addTransientNotification, emitNotificationToActor } = require('../notifications/notifications.controller');
 const { uploadStream } = require('../../../utils/cloudinaryHelpers');
-const { cursorPaginate } = require('../../../utils/pagination');
 const auditLog = require('../../../utils/auditLog');
 const { logger } = require('../../../config/database');
-const { fn, col, literal, Op } = require('sequelize');
 const { FREE_LIMITS } = require('../../../middleware/checkMemoryUploadLimits');
 
-const ALLOWED_MIME_TYPES = [ 'image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime' ];
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'];
 
-/**
- * GET /api/memories
- */
-async function getMemories (req, res) {
+async function getMemories(req, res) {
     try {
         const { cursor, limit = 20 } = req.query;
-        const where = { organization_id: req.actor.org, is_active: 1 };
+        const query = { organization_id: req.actor.org, is_active: true };
 
-        // Apply filters if provided
-        // Filter by uploader (user_id)
-        if(req.query.uploaded_by) {
-            where.uploaded_by = parseInt(req.query.uploaded_by);
+        if (req.query.uploaded_by) query.uploaded_by = req.query.uploaded_by;
+
+        if (req.query.branch) {
+            const branchUserIds = (await User.find({ organization_id: req.actor.org, branch: req.query.branch, is_active: true }).select('_id').lean()).map(u => u._id);
+            query.uploaded_by = { $in: branchUserIds };
         }
 
-        const uploaderInclude = {
-            model: User,
-            as: 'uploader',
-            attributes: [ 'id', 'name', 'avatar_url', 'branch' ],
-            required: !!req.query.branch,
-        };
-
-        // Filter by department (uploader branch)
-        if(req.query.branch) {
-            uploaderInclude.where = {
-                branch: req.query.branch,
-                organization_id: req.actor.org,
-            };
+        if (req.query.from_date || req.query.to_date) {
+            query.created_at = {};
+            if (req.query.from_date) query.created_at.$gte = new Date(req.query.from_date);
+            if (req.query.to_date) { const d = new Date(req.query.to_date); d.setHours(23, 59, 59, 999); query.created_at.$lte = d; }
         }
 
-        // Filter by date range
-        if(req.query.from_date || req.query.to_date) {
-            where.created_at = {};
-            if(req.query.from_date) {
-                where.created_at[ Op.gte ] = new Date(req.query.from_date);
-            }
-            if(req.query.to_date) {
-                const toDate = new Date(req.query.to_date);
-                toDate.setHours(23, 59, 59, 999);
-                where.created_at[ Op.lte ] = toDate;
-            }
+        if (cursor) query._id = { $lt: cursor };
+
+        const memories = await Memory.find(query).sort({ _id: -1 }).limit(parseInt(limit) + 1).lean();
+        const hasMore = memories.length > parseInt(limit);
+        const items = memories.slice(0, parseInt(limit));
+        const nextCursor = hasMore ? items[items.length - 1]._id : null;
+
+        const uploaderIds = [...new Set(items.map(m => m.uploaded_by?.toString()))];
+        const uploaders = await User.find({ _id: { $in: uploaderIds } }).select('_id name avatar_url branch').lean();
+        const uploaderMap = {};
+        for (const u of uploaders) uploaderMap[u._id.toString()] = u;
+
+        const memIds = items.map(m => m._id);
+        const reactions = await MemoryReaction.find({ memory_id: { $in: memIds }, is_active: true }).lean();
+        const reactionsByMemory = {};
+        for (const r of reactions) {
+            const key = r.memory_id.toString();
+            if (!reactionsByMemory[key]) reactionsByMemory[key] = [];
+            reactionsByMemory[key].push(r);
         }
 
-        const result = await cursorPaginate(Memory, where, cursor, limit, [ [ 'id', 'DESC' ] ], {
-            include: [
-                uploaderInclude,
-                { model: MemoryReaction, attributes: [ 'id', 'emoji', 'user_id' ], required: false },
-            ],
-        });
-
-        // Process items to include reaction counts and viewer's own reactions
-        const items = result.items.map((memory) => {
-            const memObj = memory.toJSON();
-            const reactions = memObj.MemoryReactions || [];
-
-            // Count per emoji
+        const result = items.map(memory => {
+            const memReactions = reactionsByMemory[memory._id.toString()] || [];
             const reactionCounts = {};
             const viewerReactions = [];
-            for(const r of reactions) {
-                reactionCounts[ r.emoji ] = (reactionCounts[ r.emoji ] || 0) + 1;
-                if(r.user_id === req.actor.id) {
-                    viewerReactions.push(r.emoji);
-                }
+            for (const r of memReactions) {
+                reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
+                if (r.user_id?.toString() === req.actor.id?.toString()) viewerReactions.push(r.emoji);
             }
-
-            delete memObj.MemoryReactions;
-            return {
-                ...memObj,
-                reaction_counts: reactionCounts,
-                viewer_reactions: viewerReactions,
-                total_reactions: reactions.length,
-            };
+            return { ...memory, uploader: uploaderMap[memory.uploaded_by?.toString()] || null, reaction_counts: reactionCounts, viewer_reactions: viewerReactions, total_reactions: memReactions.length };
         });
 
-        res.json({ items, nextCursor: result.nextCursor, hasMore: result.hasMore });
-    } catch(err) {
+        res.json({ items: result, nextCursor, hasMore });
+    } catch (err) {
         logger.error('getMemories error:', err.message);
         res.status(500).json({ error: 'Failed to load memories.' });
     }
 }
 
-/**
- * POST /api/memories/upload
- */
-async function uploadMemory (req, res) {
+async function uploadMemory(req, res) {
     try {
-        if(!req.file) {
-            return res.status(400).json({ error: 'File is required.' });
-        }
-
-        // MIME type validation
-        if(!ALLOWED_MIME_TYPES.includes(req.file.mimetype)) {
-            return res.status(400).json({
-                error: `Invalid file type: ${ req.file.mimetype }. Allowed: JPEG, PNG, WebP, MP4, QuickTime.`,
-            });
+        if (!req.file) return res.status(400).json({ error: 'File is required.' });
+        if (!ALLOWED_MIME_TYPES.includes(req.file.mimetype)) {
+            return res.status(400).json({ error: `Invalid file type: ${req.file.mimetype}. Allowed: JPEG, PNG, WebP, MP4, QuickTime.` });
         }
 
         const isVideo = req.file.mimetype.startsWith('video');
         const mediaType = isVideo ? 'video' : 'photo';
-        const org = req.org; // Attached by checkStorageLimit middleware
+        const org = req.org;
 
-        // Upload to Cloudinary
         const uploadResult = await uploadStream(req.file.buffer, {
-            folder: `org_${ org.id }/memories`,
+            folder: `org_${org._id}/memories`,
             resource_type: isVideo ? 'video' : 'image',
         });
 
         const fileSizeMb = (req.file.size / (1024 * 1024)).toFixed(3);
-
-        // Create Memory record
         const memory = await Memory.create({
-            organization_id: org.id,
+            organization_id: org._id,
             uploaded_by: req.actor.id,
             media_type: mediaType,
             cloudinary_url: uploadResult.secure_url,
             public_id: uploadResult.public_id,
-            thumbnail_url: isVideo
-                ? uploadResult.secure_url.replace(/\.[^/.]+$/, '.jpg')
-                : uploadResult.secure_url,
+            thumbnail_url: isVideo ? uploadResult.secure_url.replace(/\.[^/.]+$/, '.jpg') : uploadResult.secure_url,
             width: uploadResult.width || null,
             height: uploadResult.height || null,
             duration_sec: uploadResult.duration ? Math.round(uploadResult.duration) : null,
@@ -144,120 +96,67 @@ async function uploadMemory (req, res) {
             caption: req.body.caption || null,
         });
 
-        // Update org storage_used_gb
         const newStorage = parseFloat(org.storage_used_gb) + parseFloat(fileSizeMb) / 1024;
-        await org.update({ storage_used_gb: newStorage.toFixed(4) });
+        org.storage_used_gb = newStorage;
+        await org.save();
 
-        // Create notifications for org users (fire and forget)
-        const orgUsers = await User.findAll({
-            where: { organization_id: org.id },
-            attributes: [ 'id' ],
-            raw: true,
-        });
-
-        for(const u of orgUsers) {
-            if(u.id !== req.actor.id) {
-                createUserNotification(u.id, {
-                    type: 'new_memory',
-                    title: 'New memory shared!',
-                    body: `${ req.actor.name || 'Someone' } uploaded a new ${ mediaType }.`,
-                    action_url: '/portal',
-                }).catch((e) => logger.error(`Notification creation failed for user ${ u.id }:`, e.message));
+        const orgUsers = await User.find({ organization_id: org._id, is_active: true }).select('_id').lean();
+        for (const u of orgUsers) {
+            if (u._id.toString() !== req.actor.id?.toString()) {
+                createUserNotification(u._id, { type: 'new_memory', title: 'New memory shared!', body: `${req.actor.name || 'Someone'} uploaded a new ${mediaType}.`, action_url: '/portal' })
+                    .catch(e => logger.error(`Notification creation failed for user ${u._id}:`, e.message));
             }
         }
 
-        const orgAdmins = await Admin.findAll({
-            where: { organization_id: org.id },
-            attributes: [ 'id' ],
-            raw: true,
-        });
-        for(const admin of orgAdmins) {
-            const note = addTransientNotification(
-                { role: 'admin', id: admin.id },
-                {
-                    type: 'new_memory',
-                    title: 'New memory activity',
-                    body: `${ req.actor.name || 'A user' } uploaded a new ${ mediaType }.`,
-                    action_url: '/admin/dashboard',
-                }
-            );
-            emitNotificationToActor({ role: 'admin', id: admin.id }, note);
+        const orgAdmins = await Admin.find({ organization_id: org._id, is_active: true }).select('_id').lean();
+        for (const admin of orgAdmins) {
+            const note = addTransientNotification({ role: 'admin', id: admin._id }, { type: 'new_memory', title: 'New memory activity', body: `${req.actor.name || 'A user'} uploaded a new ${mediaType}.`, action_url: '/admin/dashboard' });
+            emitNotificationToActor({ role: 'admin', id: admin._id }, note);
         }
 
-        const superAdmins = await SuperAdmin.findAll({ attributes: [ 'id' ], raw: true });
-        for(const sa of superAdmins) {
-            const note = addTransientNotification(
-                { role: 'super_admin', id: sa.id },
-                {
-                    type: 'system',
-                    title: 'Platform memory event',
-                    body: `${ org.name }: new ${ mediaType } uploaded.`,
-                    action_url: '/super-admin/dashboard',
-                }
-            );
-            emitNotificationToActor({ role: 'super_admin', id: sa.id }, note);
+        const superAdmins = await SuperAdmin.find({ is_active: true }).select('_id').lean();
+        for (const sa of superAdmins) {
+            const note = addTransientNotification({ role: 'super_admin', id: sa._id }, { type: 'system', title: 'Platform memory event', body: `${org.name}: new ${mediaType} uploaded.`, action_url: '/super-admin/dashboard' });
+            emitNotificationToActor({ role: 'super_admin', id: sa._id }, note);
         }
 
         res.status(201).json({ message: 'Memory uploaded.', memory });
-    } catch(err) {
+    } catch (err) {
         logger.error('uploadMemory error:', err.message);
         res.status(500).json({ error: 'Upload failed.' });
     }
 }
 
-/**
- * DELETE /api/memories/:id
- */
-async function deleteMemory (req, res) {
+async function deleteMemory(req, res) {
     try {
-        const memory = await Memory.findByPk(req.params.id);
-        if(!memory) {
-            return res.status(404).json({ error: 'Memory not found.' });
-        }
-
-        // Only uploader or admin (checked via org) can delete
-        if(memory.uploaded_by !== req.actor.id) {
+        const memory = await Memory.findById(req.params.id);
+        if (!memory) return res.status(404).json({ error: 'Memory not found.' });
+        if (memory.uploaded_by?.toString() !== req.actor.id?.toString()) {
             return res.status(403).json({ error: 'You can only delete your own memories.' });
         }
-
-        await memory.update({ is_active: 0 });
-        auditLog.log('user', req.actor.id, 'MEMORY_DELETED', 'memory', memory.id, null, req);
-
+        memory.is_active = false;
+        await memory.save();
+        auditLog.log('user', req.actor.id, 'MEMORY_DELETED', 'memory', memory._id, null, req);
         res.json({ message: 'Memory deleted.' });
-    } catch(err) {
+    } catch (err) {
         logger.error('deleteMemory error:', err.message);
         res.status(500).json({ error: 'Failed to delete memory.' });
     }
 }
 
-/**
- * GET /api/memories/profile/:user_id (PUBLIC)
- */
-async function getMyMemoryUsage (req, res) {
+async function getMyMemoryUsage(req, res) {
     try {
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
         const end = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
 
-        const baseWhere = {
-            organization_id: req.actor.org,
-            uploaded_by: req.actor.id,
-            is_active: 1,
-            created_at: {
-                [ Op.gte ]: start,
-                [ Op.lt ]: end,
-            },
-        };
-
-        const [ photoCount, videoCount ] = await Promise.all([
-            Memory.count({ where: { ...baseWhere, media_type: 'photo' } }),
-            Memory.count({ where: { ...baseWhere, media_type: 'video' } }),
+        const baseQuery = { organization_id: req.actor.org, uploaded_by: req.actor.id, is_active: true, created_at: { $gte: start, $lt: end } };
+        const [photoCount, videoCount] = await Promise.all([
+            Memory.countDocuments({ ...baseQuery, media_type: 'photo' }),
+            Memory.countDocuments({ ...baseQuery, media_type: 'video' }),
         ]);
 
-        const org = await Organization.findByPk(req.actor.org, {
-            attributes: [ 'plan' ],
-        });
-
+        const org = await Organization.findById(req.actor.org).select('plan').lean();
         const plan = (org?.plan || 'free').toLowerCase();
         const imageLimit = plan === 'free' ? FREE_LIMITS.imageCount : null;
         const videoLimit = plan === 'free' ? FREE_LIMITS.videoCount : null;
@@ -275,127 +174,95 @@ async function getMyMemoryUsage (req, res) {
                 video_size_limit_mb: FREE_LIMITS.videoSizeMb,
             },
         });
-    } catch(err) {
+    } catch (err) {
         logger.error('getMyMemoryUsage error:', err.message);
         return res.status(500).json({ error: 'Failed to load memory usage.' });
     }
 }
 
-async function getPublicUserMemories (req, res) {
+async function getPublicUserMemories(req, res) {
     try {
         const { user_id } = req.params;
         const { cursor, limit = 20 } = req.query;
 
-        // Get user details
-        const user = await User.findByPk(user_id, {
-            attributes: [ 'id', 'name', 'organization_id', 'branch', 'batch_year', 'avatar_url' ],
-        });
+        const user = await User.findById(user_id).select('_id name organization_id branch batch_year avatar_url').lean();
+        if (!user) return res.status(404).json({ error: 'User not found.' });
 
-        if(!user) {
-            return res.status(404).json({ error: 'User not found.' });
+        const query = { organization_id: user.organization_id, uploaded_by: user._id, is_active: true };
+        if (cursor) query._id = { $lt: cursor };
+
+        const memories = await Memory.find(query).sort({ _id: -1 }).limit(parseInt(limit) + 1).lean();
+        const hasMore = memories.length > parseInt(limit);
+        const items = memories.slice(0, parseInt(limit));
+        const nextCursor = hasMore ? items[items.length - 1]._id : null;
+
+        const memIds = items.map(m => m._id);
+        const reactions = await MemoryReaction.find({ memory_id: { $in: memIds }, is_active: true }).lean();
+        const reactionsByMemory = {};
+        for (const r of reactions) {
+            const key = r.memory_id.toString();
+            if (!reactionsByMemory[key]) reactionsByMemory[key] = [];
+            reactionsByMemory[key].push(r);
         }
 
-        // Get user's memories
-        const where = { organization_id: user.organization_id, uploaded_by: user_id, is_active: 1 };
-        const result = await cursorPaginate(Memory, where, cursor, limit, [ [ 'created_at', 'DESC' ] ], {
-            include: [
-                { model: User, as: 'uploader', attributes: [ 'id', 'name', 'avatar_url' ], required: false },
-                { model: MemoryReaction, attributes: [ 'id', 'emoji', 'user_id' ], required: false },
-            ],
-        });
-
-        // Process reaction counts
-        const items = result.items.map((memory) => {
-            const memObj = memory.toJSON();
-            const reactions = memObj.MemoryReactions || [];
+        const result = items.map(memory => {
+            const memReactions = reactionsByMemory[memory._id.toString()] || [];
             const reactionCounts = {};
-            for(const r of reactions) {
-                reactionCounts[ r.emoji ] = (reactionCounts[ r.emoji ] || 0) + 1;
-            }
-            delete memObj.MemoryReactions;
-            return { ...memObj, reaction_counts: reactionCounts, total_reactions: reactions.length };
+            for (const r of memReactions) reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
+            return { ...memory, reaction_counts: reactionCounts, total_reactions: memReactions.length };
         });
 
-        res.json({
-            user: { id: user.id, name: user.name, avatar_url: user.avatar_url, branch: user.branch, batch_year: user.batch_year },
-            memories: items,
-            nextCursor: result.nextCursor,
-            hasMore: result.hasMore,
-        });
-    } catch(err) {
+        res.json({ user: { id: user._id, name: user.name, avatar_url: user.avatar_url, branch: user.branch, batch_year: user.batch_year }, memories: result, nextCursor, hasMore });
+    } catch (err) {
         logger.error('getPublicUserMemories error:', err.message);
         res.status(500).json({ error: 'Failed to load user memories.' });
     }
 }
 
-/**
- * GET /api/memories/stats/summary (AUTH)
- */
-async function getMemoryStats (req, res) {
+async function getMemoryStats(req, res) {
     try {
         const orgId = req.actor.org;
 
-        const totalMemories = await Memory.count({ where: { organization_id: orgId, is_active: 1 } });
-        const photoCount = await Memory.count({ where: { organization_id: orgId, media_type: 'photo', is_active: 1 } });
-        const videoCount = await Memory.count({ where: { organization_id: orgId, media_type: 'video', is_active: 1 } });
+        const [totalMemories, photoCount, videoCount] = await Promise.all([
+            Memory.countDocuments({ organization_id: orgId, is_active: true }),
+            Memory.countDocuments({ organization_id: orgId, media_type: 'photo', is_active: true }),
+            Memory.countDocuments({ organization_id: orgId, media_type: 'video', is_active: true }),
+        ]);
 
-        const storageResult = await Memory.findOne({
-            where: { organization_id: orgId, is_active: 1 },
-            attributes: [ [ fn('SUM', col('file_size_mb')), 'total_size' ] ],
-            raw: true,
-        });
-        const totalSizeMb = parseFloat(storageResult?.total_size || 0);
+        const storageAgg = await Memory.aggregate([
+            { $match: { organization_id: new mongoose.Types.ObjectId(orgId), is_active: true } },
+            { $group: { _id: null, total: { $sum: '$file_size_mb' } } },
+        ]);
+        const totalSizeMb = parseFloat(storageAgg[0]?.total || 0);
 
-        const reactionStats = await MemoryReaction.findAll({
-            attributes: [ 'emoji', [ fn('COUNT', col('MemoryReaction.id')), 'count' ] ],
-            where: { '$Memory.organization_id$': orgId, '$Memory.is_active$': 1 },
-            include: [ { model: Memory, attributes: [], required: true } ],
-            group: [ 'MemoryReaction.emoji' ],
-            raw: true,
-            subQuery: false,
-        });
+        const reactionStats = await MemoryReaction.aggregate([
+            { $lookup: { from: 'memories', localField: 'memory_id', foreignField: '_id', as: 'memory' } },
+            { $unwind: '$memory' },
+            { $match: { 'memory.organization_id': new mongoose.Types.ObjectId(orgId), 'memory.is_active': true, is_active: true } },
+            { $group: { _id: '$emoji', count: { $sum: 1 } } },
+        ]);
 
-        const topContributors = await Memory.findAll({
-            attributes: [ 'uploaded_by', [ fn('COUNT', col('Memory.id')), 'count' ] ],
-            where: { organization_id: orgId, is_active: 1 },
-            include: [ { model: User, as: 'uploader', attributes: [ 'id', 'name', 'avatar_url' ], required: true } ],
-            group: [ 'uploaded_by', 'uploader.id', 'uploader.name', 'uploader.avatar_url' ],
-            order: [ [ literal('count'), 'DESC' ] ],
-            limit: 5,
-            subQuery: false,
-            raw: true,
-        });
+        const topContributors = await Memory.aggregate([
+            { $match: { organization_id: new mongoose.Types.ObjectId(orgId), is_active: true } },
+            { $group: { _id: '$uploaded_by', count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 5 },
+            { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user' } },
+            { $unwind: '$user' },
+        ]);
 
         res.json({
-            stats: {
-                total_memories: totalMemories,
-                photo_count: photoCount,
-                video_count: videoCount,
-                total_storage_mb: Number(totalSizeMb.toFixed(2)),
-            },
-            reactions: reactionStats.map((r) => ({
-                emoji: r.emoji,
-                count: Number(r.count),
-            })),
-            top_contributors: topContributors.map((row) => ({
-                user_id: row.uploaded_by,
-                count: Number(row.count),
-                name: row[ 'uploader.name' ] || 'Unknown',
-                avatar_url: row[ 'uploader.avatar_url' ] || null,
-            })),
+            stats: { total_memories: totalMemories, photo_count: photoCount, video_count: videoCount, total_storage_mb: Number(totalSizeMb.toFixed(2)) },
+            reactions: reactionStats.map(r => ({ emoji: r._id, count: Number(r.count) })),
+            top_contributors: topContributors.map(row => ({ user_id: row._id, count: Number(row.count), name: row.user?.name || 'Unknown', avatar_url: row.user?.avatar_url || null })),
         });
-    } catch(err) {
+    } catch (err) {
         logger.error('getMemoryStats error:', err.message);
         res.status(500).json({ error: 'Failed to load memory stats.' });
     }
 }
 
-module.exports = {
-    getMemories,
-    getMyMemoryUsage,
-    uploadMemory,
-    deleteMemory,
-    getPublicUserMemories,
-    getMemoryStats,
-};
+// import mongoose for ObjectId casting in aggregations
+const mongoose = require('mongoose');
 
+module.exports = { getMemories, getMyMemoryUsage, uploadMemory, deleteMemory, getPublicUserMemories, getMemoryStats };

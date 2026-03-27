@@ -1,98 +1,37 @@
-// backend/models/Card.js
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../../../config/database');
+// backend/src/modules/cards/Card.model.js
+const mongoose = require('mongoose');
 const crypto = require('crypto');
 
-const Card = sequelize.define('Card', {
-  id: {
-    type: DataTypes.INTEGER.UNSIGNED,
-    autoIncrement: true,
-    primaryKey: true,
-  },
-  user_id: {
-    type: DataTypes.INTEGER.UNSIGNED,
-    allowNull: false,
-    unique: true,
-  },
-  qr_hash: {
-    type: DataTypes.STRING(64),
-    allowNull: false,
-    unique: true,
-  },
-  qr_signed_token: {
-    type: DataTypes.STRING(512),
-    allowNull: true,
-  },
-  template_id: {
-    type: DataTypes.STRING(50),
-    allowNull: false,
-    defaultValue: 'tmpl_midnight',
-  },
-  front_data_json: {
-    type: DataTypes.JSON,
-    allowNull: false,
-  },
-  back_image_url: {
-    type: DataTypes.STRING(512),
-    allowNull: true,
-  },
-  back_image_public_id: {
-    type: DataTypes.STRING(255),
-    allowNull: true,
-  },
-  card_download_url: {
-    type: DataTypes.STRING(512),
-    allowNull: true,
-  },
-  card_download_public_id: {
-    type: DataTypes.STRING(255),
-    allowNull: true,
-  },
-  share_slug: {
-    type: DataTypes.STRING(32),
-    allowNull: true,
-    unique: true,
-  },
-  share_enabled: {
-    type: DataTypes.TINYINT(1),
-    defaultValue: 1,
-  },
-  scan_count: {
-    type: DataTypes.INTEGER.UNSIGNED,
-    defaultValue: 0,
-  },
-  last_scanned_at: {
-    type: DataTypes.DATE,
-    allowNull: true,
-  },
-  is_active: {
-    type: DataTypes.TINYINT(1),
-    allowNull: false,
-    defaultValue: 1,
-  },
+const cardSchema = new mongoose.Schema({
+  user_id:                { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+  qr_hash:                { type: String, required: true, unique: true },
+  qr_signed_token:        { type: String, default: null },
+  template_id:            { type: String, default: 'tmpl_midnight' },
+  front_data_json:        { type: mongoose.Schema.Types.Mixed, required: true },
+  back_image_url:         { type: String, default: null },
+  back_image_public_id:   { type: String, default: null },
+  card_download_url:      { type: String, default: null },
+  card_download_public_id:{ type: String, default: null },
+  share_slug:             { type: String, default: null, unique: true, sparse: true },
+  share_enabled:          { type: Boolean, default: true },
+  scan_count:             { type: Number, default: 0 },
+  last_scanned_at:        { type: Date, default: null },
+  is_active:              { type: Boolean, default: true },
 }, {
-  tableName: 'cards',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
-  defaultScope: {
-    where: { is_active: 1 },
-  },
-  scopes: {
-    withInactive: { where: {} },
-  },
-  hooks: {
-    beforeValidate: (card) => {
-      // Generate share_slug — 8-char random hex
-      if (!card.share_slug) {
-        card.share_slug = crypto.randomBytes(4).toString('hex');
-      }
-      // Generate qr_hash if not set
-      if (!card.qr_hash) {
-        card.qr_hash = crypto.randomBytes(32).toString('hex');
-      }
-    },
-  },
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
 
+cardSchema.pre('validate', function (next) {
+  if (!this.share_slug) {
+    this.share_slug = crypto.randomBytes(4).toString('hex');
+  }
+  if (!this.qr_hash) {
+    this.qr_hash = crypto.randomBytes(32).toString('hex');
+  }
+  next();
+});
+
+const Card = mongoose.model('Card', cardSchema);
 module.exports = Card;

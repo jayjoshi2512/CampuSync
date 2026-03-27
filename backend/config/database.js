@@ -1,5 +1,5 @@
 // backend/config/database.js
-const { Sequelize } = require('sequelize');
+const mongoose = require('mongoose');
 const winston = require('winston');
 
 const logger = winston.createLogger({
@@ -18,33 +18,21 @@ const logger = winston.createLogger({
   ],
 });
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME || 'phygital_saas',
-  process.env.DB_USER || 'root',
-  process.env.DB_PASSWORD || '',
-  {
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: parseInt(process.env.DB_PORT || '3306', 10),
-    dialect: process.env.DB_DIALECT || 'mysql',
-    timezone: '+00:00',
-    pool: {
-      max: 10,
-      min: 2,
-      acquire: 30000,
-      idle: 10000,
-    },
-    logging: process.env.NODE_ENV === 'development'
-      ? (msg) => logger.debug(msg)
-      : false,
-    define: {
-      timestamps: true,
-      underscored: true,
-      createdAt: 'created_at',
-      updatedAt: 'updated_at',
-      charset: 'utf8mb4',
-      collate: 'utf8mb4_unicode_ci',
-    },
+const connectDB = async () => {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    logger.error('MONGODB_URI is not defined in environment variables');
+    process.exit(1);
   }
-);
+  try {
+    await mongoose.connect(uri, {
+      dbName: process.env.DB_NAME || 'campusync',
+    });
+    logger.info('MongoDB connected successfully');
+  } catch (err) {
+    logger.error('MongoDB connection error:', err);
+    process.exit(1);
+  }
+};
 
-module.exports = { sequelize, logger };
+module.exports = { connectDB, mongoose, logger };

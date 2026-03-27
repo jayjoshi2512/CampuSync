@@ -7,7 +7,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 
-const { sequelize, logger } = require('./config/database');
+const { connectDB, logger } = require('./config/database');
 const { handleWebhook } = require('./src/modules/billing/billing.controller');
 const { generalApi } = require('./middleware/rateLimiter');
 
@@ -164,17 +164,11 @@ app.use((err, req, res, next) => {
 // ============================================
 async function startServer () {
     try {
-        // Test database connection
-        await sequelize.authenticate();
-        logger.info('Database: Connection established successfully.');
+        // Connect to MongoDB
+        await connectDB();
 
-        // Sync models in development (creates tables if they don't exist)
-        if(process.env.NODE_ENV === 'development') {
-            // Import models to trigger associations
-            require('./src/modules/models');
-            await sequelize.sync({ alter: false });
-            logger.info('Database: Models synchronized.');
-        }
+        // Import all models to ensure schemas are registered
+        require('./src/modules/models');
 
         app.listen(PORT, () => {
             logger.info(`🚀 Server running on http://localhost:${ PORT }`);

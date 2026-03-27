@@ -13,7 +13,7 @@ async function checkStorageLimit(req, res, next) {
       return res.status(403).json({ error: 'Organization context required' });
     }
 
-    const org = await Organization.findByPk(orgId);
+    const org = await Organization.findById(orgId);
     if (!org) {
       return res.status(404).json({ error: 'Organization not found' });
     }

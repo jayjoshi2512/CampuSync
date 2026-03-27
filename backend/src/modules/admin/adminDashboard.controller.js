@@ -1,24 +1,14 @@
-// backend/controllers/adminDashboard.js
-const { Op, fn, col, literal } = require('sequelize');
-const { sequelize } = require('../../../config/database');
+// backend/src/modules/admin/adminDashboard.controller.js
 const { parse } = require('csv-parse/sync');
 const crypto = require('crypto');
-const { User } = require('../models');
-const { Card } = require('../models');
-const { Memory } = require('../models');
-const { MemoryReaction } = require('../models');
-const { Organization } = require('../models');
-const { Admin } = require('../models');
-const { Notification } = require('../models');
-const { CardScanEvent } = require('../models');
-const { AlumniRequest } = require('../models');
+const mongoose = require('mongoose');
+const { User, Card, Memory, MemoryReaction, Organization, Admin, Notification, CardScanEvent, AlumniRequest } = require('../models');
 const { createUserNotification } = require('../notifications/notifications.controller');
 const { uploadStream, deleteAsset } = require('../../../utils/cloudinaryHelpers');
 const { signMagicLinkToken } = require('../../../utils/jwtFactory');
 const { cohortMagicLinkEmail, announcementEmail, onboardingEmail } = require('../../../utils/emailTemplates');
 const { sendMail } = require('../../../config/mailer');
 const { generateQRBatchPDF } = require('../../../utils/qrGenerator');
-const { cursorPaginate } = require('../../../utils/pagination');
 const auditLog = require('../../../utils/auditLog');
 const redis = require('../../../config/redis');
 const { logger } = require('../../../config/database');
@@ -26,38 +16,34 @@ const { logger } = require('../../../config/database');
 /**
  * GET /api/admin/cohort
  */
-async function getCohort (req, res) {
+async function getCohort(req, res) {
     try {
         const { page = 1, limit = 20, search, sortBy = 'name', sortDir = 'asc' } = req.query;
-        const where = { organization_id: req.actor.org };
-        if(search) {
-            where[ Op.or ] = [
-                { name: { [ Op.like ]: `%${ search }%` } },
-                { email: { [ Op.like ]: `%${ search }%` } },
-                { roll_number: { [ Op.like ]: `%${ search }%` } },
-            ];
+        const query = { organization_id: req.actor.org, is_active: true };
+        if (search) {
+            const re = new RegExp(search, 'i');
+            query.$or = [{ name: re }, { email: re }, { roll_number: re }];
         }
 
-        const direction = sortDir.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
-        let order = [ [ 'name', 'ASC' ] ];
-
-        if([ 'name', 'roll_number', 'branch' ].includes(sortBy)) {
-            order = [ [ sortBy, direction ] ];
-        } else if(sortBy === 'scans') {
-            order = [ [ Card, 'scan_count', direction ] ];
-        }
-
+        const sortField = ['name', 'roll_number', 'branch'].includes(sortBy) ? sortBy : 'name';
+        const sortOrder = sortDir.toLowerCase() === 'desc' ? -1 : 1;
         const offset = (parseInt(page) - 1) * parseInt(limit);
-        const { rows, count } = await User.findAndCountAll({
-            where,
-            order,
-            limit: parseInt(limit),
-            offset,
-            include: [ { model: Card, attributes: [ 'id', 'qr_hash', 'share_slug', 'scan_count', 'template_id' ] } ],
-        });
 
-        res.json({ users: rows, total: count, page: parseInt(page), total_pages: Math.ceil(count / parseInt(limit)) });
-    } catch(err) {
+        const [rows, count] = await Promise.all([
+            User.find(query).sort({ [sortField]: sortOrder }).skip(offset).limit(parseInt(limit)).lean(),
+            User.countDocuments(query),
+        ]);
+
+        // Attach card info
+        const userIds = rows.map(u => u._id);
+        const cards = await Card.find({ user_id: { $in: userIds }, is_active: true })
+            .select('user_id qr_hash share_slug scan_count template_id').lean();
+        const cardMap = {};
+        for (const c of cards) cardMap[c.user_id.toString()] = c;
+        const users = rows.map(u => ({ ...u, Card: cardMap[u._id.toString()] || null }));
+
+        res.json({ users, total: count, page: parseInt(page), total_pages: Math.ceil(count / parseInt(limit)) });
+    } catch (err) {
         logger.error('getCohort error:', err.message);
         res.status(500).json({ error: 'Failed to load cohort.' });
     }
@@ -66,124 +52,85 @@ async function getCohort (req, res) {
 /**
  * POST /api/admin/cohort/import-csv
  */
-async function importCsv (req, res) {
+async function importCsv(req, res) {
     try {
-        if(!req.file) {
-            return res.status(400).json({ error: 'CSV file is required.' });
-        }
+        if (!req.file) return res.status(400).json({ error: 'CSV file is required.' });
 
-        const org = await Organization.findByPk(req.actor.org);
-        if(!org) return res.status(404).json({ error: 'Organization not found.' });
+        const org = await Organization.findById(req.actor.org);
+        if (!org) return res.status(404).json({ error: 'Organization not found.' });
 
         const csvContent = req.file.buffer.toString('utf-8');
         let records;
         try {
-            records = parse(csvContent, {
-                columns: true,
-                skip_empty_lines: true,
-                trim: true,
-            });
-        } catch(parseErr) {
+            records = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
+        } catch (parseErr) {
             return res.status(400).json({ error: 'Invalid CSV format.', details: parseErr.message });
         }
 
         const errors = [];
         const validUsers = [];
-        const existingEmails = new Set(
-            (await User.unscoped().findAll({ where: { organization_id: org.id }, attributes: [ 'email' ], raw: true }))
-                .map((u) => u.email.toLowerCase())
-        );
+        const existingDocs = await User.find({ organization_id: org._id }).select('email').lean();
+        const existingEmails = new Set(existingDocs.map(u => u.email.toLowerCase()));
 
-        // Check card quota
-        const currentCardCount = await Card.count({ where: { '$User.organization_id$': org.id }, include: [ { model: User, attributes: [] } ] }).catch(() => 0);
+        const currentCardCount = await Card.countDocuments({
+            user_id: { $in: (await User.find({ organization_id: org._id }).select('_id').lean()).map(u => u._id) }
+        }).catch(() => 0);
 
-        for(let i = 0;i < records.length;i++) {
-            const row = records[ i ];
-            const rowNum = i + 2; // Header is row 1
+        for (let i = 0; i < records.length; i++) {
+            const row = records[i];
+            const rowNum = i + 2;
             const email = (row.email || '').trim().toLowerCase();
             const name = (row.name || '').trim();
             const roll_number = (row.roll_number || row.roll || '').trim();
             const branch = (row.branch || row.department || '').trim();
             const batch_year = parseInt(row.batch_year || row.year || '');
-
-            if(!email) {
-                errors.push({ row: rowNum, email: '', reason: 'Email is required' });
-                continue;
-            }
-            if(!name) {
-                errors.push({ row: rowNum, email, reason: 'Name is required' });
-                continue;
-            }
-            if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                errors.push({ row: rowNum, email, reason: 'Invalid email format' });
-                continue;
-            }
-            if(existingEmails.has(email)) {
-                errors.push({ row: rowNum, email, reason: 'Email already exists in this organization' });
-                continue;
-            }
-
-            existingEmails.add(email); // Prevent duplicates within CSV
+            if (!email) { errors.push({ row: rowNum, email: '', reason: 'Email is required' }); continue; }
+            if (!name) { errors.push({ row: rowNum, email, reason: 'Name is required' }); continue; }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errors.push({ row: rowNum, email, reason: 'Invalid email format' }); continue; }
+            if (existingEmails.has(email)) { errors.push({ row: rowNum, email, reason: 'Email already exists' }); continue; }
+            existingEmails.add(email);
             validUsers.push({ email, name, roll_number, branch, batch_year: batch_year || null });
         }
 
-        // Check quota
-        const totalAfterImport = currentCardCount + validUsers.length;
-        if(org.card_quota && totalAfterImport > org.card_quota) {
+        if (org.card_quota && (currentCardCount + validUsers.length) > org.card_quota) {
             return res.status(400).json({
-                error: `Import would exceed card quota. Current: ${ currentCardCount }, Import: ${ validUsers.length }, Quota: ${ org.card_quota }`,
+                error: `Import would exceed card quota. Current: ${currentCardCount}, Import: ${validUsers.length}, Quota: ${org.card_quota}`,
             });
         }
 
-        // Bulk create users
         let imported = 0;
-        for(const userData of validUsers) {
-            const t = await sequelize.transaction();
+        for (const userData of validUsers) {
+            const session = await mongoose.startSession();
+            session.startTransaction();
             try {
-                const user = await User.create({
-                    organization_id: org.id,
+                const user = new User({
+                    organization_id: org._id,
                     name: userData.name,
                     email: userData.email,
                     roll_number: userData.roll_number || null,
                     branch: userData.branch || null,
                     batch_year: userData.batch_year,
-                }, { transaction: t });
-
-                // Create card for user
-                await Card.create({
-                    user_id: user.id,
+                });
+                await user.save({ session });
+                await Card.create([{
+                    user_id: user._id,
                     template_id: org.selected_card_template || 'tmpl_midnight',
-                    front_data_json: {
-                        name: user.name,
-                        roll: user.roll_number,
-                        branch: user.branch,
-                        batch: user.batch_year,
-                        org_name: org.name,
-                        org_logo: org.logo_url,
-                    },
-                }, { transaction: t });
-
-                await t.commit();
+                    front_data_json: { name: user.name, roll: user.roll_number, branch: user.branch, batch: user.batch_year, org_name: org.name, org_logo: org.logo_url },
+                }], { session });
+                await session.commitTransaction();
                 imported++;
-            } catch(createErr) {
-                await t.rollback();
-                // Extract a clean message (strip "notNull Violation:" prefix etc.)
-                const msg = createErr.errors?.[ 0 ]?.message || createErr.message;
+            } catch (createErr) {
+                await session.abortTransaction();
+                const msg = createErr.message;
                 errors.push({ row: 0, email: userData.email, reason: msg });
+            } finally {
+                session.endSession();
             }
         }
 
-        auditLog.log('admin', req.actor.id, 'CSV_IMPORTED', 'organization', org.id, {
-            total: records.length, imported, failed: errors.length,
-        }, req);
-
-        res.json({
-            total: records.length,
-            imported,
-            failed: errors.length,
-            errors,
-        });
-    } catch(err) {
+        auditLog.log('admin', req.actor.id, 'CSV_IMPORTED', 'organization', org._id, { total: records.length, imported, failed: errors.length }, req);
+        res.json({ total: records.length, imported, failed: errors.length, errors });
+    } catch (err) {
         logger.error('importCsv error:', err.message);
         res.status(500).json({ error: 'CSV import failed.' });
     }
@@ -192,131 +139,95 @@ async function importCsv (req, res) {
 /**
  * POST /api/admin/cohort/manual
  */
-async function addStudent (req, res) {
-    const t = await sequelize.transaction();
+async function addStudent(req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { email, name, roll_number, branch, batch_year, role } = req.body;
         const orgId = req.actor.org;
+        if (!email || !name) return res.status(400).json({ error: 'Email and Name are required.' });
 
-        if(!email || !name) {
-            return res.status(400).json({ error: 'Email and Name are required.' });
-        }
-
-        // Check if user exists (including soft deleted)
-        const existing = await User.unscoped().findOne({ where: { email, organization_id: orgId } });
-        if(existing) {
-            if(existing.is_active) {
+        const existing = await User.findOne({ email, organization_id: orgId }).setOptions({ strict: false });
+        if (existing) {
+            if (existing.is_active) {
+                await session.abortTransaction();
                 return res.status(400).json({ error: 'Email already exists in this organization.' });
             }
-            // Reactivate soft-deleted user
-            existing.is_active = 1;
+            existing.is_active = true;
             existing.name = name;
             existing.roll_number = roll_number || existing.roll_number;
             existing.branch = branch || existing.branch;
-            existing.branch = branch || existing.branch;
             existing.batch_year = batch_year || existing.batch_year;
-            if(role && [ 'user', 'alumni' ].includes(role)) existing.role = role;
-            await existing.save({ transaction: t });
+            if (role && ['user', 'alumni'].includes(role)) existing.role = role;
+            await existing.save({ session });
 
-            // Ensure card exists or update it
-            let card = await Card.unscoped().findOne({ where: { user_id: existing.id } });
-            if(card) {
-                card.is_active = 1;
-                await card.save({ transaction: t });
+            let card = await Card.findOne({ user_id: existing._id }).setOptions({ strict: false });
+            if (card) {
+                card.is_active = true;
+                await card.save({ session });
             } else {
-                await Card.create({
-                    user_id: existing.id,
-                    template_id: (await Organization.findByPk(orgId)).selected_card_template || 'tmpl_midnight',
-                    front_data_json: { name: existing.name, roll: existing.roll_number, branch: existing.branch, org_name: (await Organization.findByPk(orgId)).name },
-                }, { transaction: t });
+                const org = await Organization.findById(orgId);
+                await Card.create([{ user_id: existing._id, template_id: org?.selected_card_template || 'tmpl_midnight', front_data_json: { name: existing.name, roll: existing.roll_number, branch: existing.branch, org_name: org?.name } }], { session });
             }
-
-            await t.commit();
+            await session.commitTransaction();
             return res.json({ message: 'Student reactivated successfully.', user: existing });
         }
 
-        const user = await User.create({
-            organization_id: orgId,
-            email,
-            name,
-            roll_number,
-            branch,
-            batch_year,
-            role: role && [ 'user', 'alumni' ].includes(role) ? role : 'user',
-        }, { transaction: t });
-
-        const org = await Organization.findByPk(orgId);
-        await Card.create({
-            user_id: user.id,
-            template_id: org.selected_card_template || 'tmpl_midnight',
-            front_data_json: {
-                name: user.name,
-                roll: user.roll_number,
-                branch: user.branch,
-                batch: user.batch_year,
-                org_name: org.name,
-                org_logo: org.logo_url,
-            },
-        }, { transaction: t });
-
-        await t.commit();
+        const user = new User({ organization_id: orgId, email, name, roll_number, branch, batch_year, role: role && ['user', 'alumni'].includes(role) ? role : 'user' });
+        await user.save({ session });
+        const org = await Organization.findById(orgId);
+        await Card.create([{
+            user_id: user._id,
+            template_id: org?.selected_card_template || 'tmpl_midnight',
+            front_data_json: { name: user.name, roll: user.roll_number, branch: user.branch, batch: user.batch_year, org_name: org?.name, org_logo: org?.logo_url },
+        }], { session });
+        await session.commitTransaction();
         res.status(201).json({ message: 'Student added successfully.', user });
-    } catch(err) {
-        await t.rollback();
+    } catch (err) {
+        await session.abortTransaction();
         logger.error('addStudent error:', err.message);
         res.status(500).json({ error: 'Failed to add student.' });
+    } finally {
+        session.endSession();
     }
 }
 
 /**
  * PUT /api/admin/cohort/:id
  */
-async function editStudent (req, res) {
+async function editStudent(req, res) {
     try {
         const { id } = req.params;
         const { name, email, roll_number, branch, batch_year, role } = req.body;
         const orgId = req.actor.org;
 
-        const user = await User.findOne({ where: { id, organization_id: orgId } });
-        if(!user) {
-            return res.status(404).json({ error: 'Student not found.' });
-        }
+        const user = await User.findOne({ _id: id, organization_id: orgId, is_active: true });
+        if (!user) return res.status(404).json({ error: 'Student not found.' });
 
-        // Check if new email is already taken by another user in the same org
-        if(email !== user.email) {
-            const existingEmail = await User.findOne({ where: { email, organization_id: orgId } });
-            if(existingEmail && existingEmail.id !== user.id) {
+        if (email && email !== user.email) {
+            const existingEmail = await User.findOne({ email, organization_id: orgId, is_active: true });
+            if (existingEmail && existingEmail._id.toString() !== user._id.toString()) {
                 return res.status(400).json({ error: 'Email is already taken by another student.' });
             }
         }
 
-        user.name = name || user.name;
-        user.email = email || user.email;
-        user.roll_number = roll_number !== undefined ? roll_number : user.roll_number;
-        user.branch = branch !== undefined ? branch : user.branch;
-        user.batch_year = batch_year !== undefined ? batch_year : user.batch_year;
-        if(role && [ 'user', 'alumni' ].includes(role)) user.role = role;
-
+        if (name !== undefined) user.name = name;
+        if (email !== undefined) user.email = email;
+        if (roll_number !== undefined) user.roll_number = roll_number;
+        if (branch !== undefined) user.branch = branch;
+        if (batch_year !== undefined) user.batch_year = batch_year;
+        if (role && ['user', 'alumni'].includes(role)) user.role = role;
         await user.save();
 
-        // Re-generate card data with new info if needed
-        const card = await Card.findOne({ where: { user_id: user.id } });
-        if(card) {
-            const org = await Organization.findByPk(orgId);
-            card.front_data_json = {
-                ...card.front_data_json,
-                name: user.name,
-                roll: user.roll_number,
-                branch: user.branch,
-                batch: user.batch_year,
-                org_name: org.name,
-                org_logo: org.logo_url
-            };
+        const card = await Card.findOne({ user_id: user._id, is_active: true });
+        if (card) {
+            const org = await Organization.findById(orgId);
+            card.front_data_json = { ...card.front_data_json, name: user.name, roll: user.roll_number, branch: user.branch, batch: user.batch_year, org_name: org?.name, org_logo: org?.logo_url };
             await card.save();
         }
 
         res.json({ message: 'Student updated successfully.', user });
-    } catch(err) {
+    } catch (err) {
         logger.error('editStudent error:', err.message);
         res.status(500).json({ error: 'Failed to update student.' });
     }
@@ -325,39 +236,28 @@ async function editStudent (req, res) {
 /**
  * POST /api/admin/cohort/send-magic-links
  */
-async function sendMagicLinks (req, res) {
+async function sendMagicLinks(req, res) {
     try {
-        const org = await Organization.findByPk(req.actor.org);
-        if(!org) return res.status(404).json({ error: 'Organization not found.' });
+        const org = await Organization.findById(req.actor.org);
+        if (!org) return res.status(404).json({ error: 'Organization not found.' });
 
-        const users = await User.findAll({
-            where: { organization_id: org.id, last_login_at: null, is_active: 1 },
-        });
-
-        if(users.length === 0) {
-            return res.json({ message: 'All users have already logged in.', queued: 0 });
-        }
+        const users = await User.find({ organization_id: org._id, last_login_at: null, is_active: true });
+        if (users.length === 0) return res.json({ message: 'All users have already logged in.', queued: 0 });
 
         const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
         let queued = 0;
-
-        for(const user of users) {
-            const magicToken = signMagicLinkToken(user.id, org.id);
-            await redis.set(`magic_link:${ magicToken }`, user.id.toString(), 86400); // 24h TTL
-            const link = `${ appBaseUrl }/portal?magic=${ magicToken }`;
-
-            sendMail(
-                user.email,
-                `Welcome to ${ org.name } — Access Your Card`,
-                cohortMagicLinkEmail(user.name, org.name, link)
-            ).catch((e) => logger.error(`Failed to send magic link to ${ user.email }:`, e.message));
-
+        for (const user of users) {
+            const magicToken = signMagicLinkToken(user._id, org._id);
+            await redis.set(`magic_link:${magicToken}`, user._id.toString(), 86400);
+            const link = `${appBaseUrl}/portal?magic=${magicToken}`;
+            sendMail(user.email, `Welcome to ${org.name} — Access Your Card`, cohortMagicLinkEmail(user.name, org.name, link))
+                .catch(e => logger.error(`Failed to send magic link to ${user.email}:`, e.message));
             queued++;
         }
 
-        auditLog.log('admin', req.actor.id, 'MAGIC_LINKS_SENT', 'organization', org.id, { recipients: queued }, req);
-        res.json({ message: `Magic links sent to ${ queued } users.`, queued });
-    } catch(err) {
+        auditLog.log('admin', req.actor.id, 'MAGIC_LINKS_SENT', 'organization', org._id, { recipients: queued }, req);
+        res.json({ message: `Magic links sent to ${queued} users.`, queued });
+    } catch (err) {
         logger.error('sendMagicLinks error:', err.message);
         res.status(500).json({ error: 'Failed to send magic links.' });
     }
@@ -366,28 +266,23 @@ async function sendMagicLinks (req, res) {
 /**
  * POST /api/admin/cohort/:id/send-magic-link
  */
-async function sendIndividualMagicLink (req, res) {
+async function sendIndividualMagicLink(req, res) {
     try {
         const { id } = req.params;
-        const user = await User.findOne({ where: { id, organization_id: req.actor.org, is_active: 1 } });
-        if(!user) return res.status(404).json({ error: 'User not found or inactive.' });
+        const user = await User.findOne({ _id: id, organization_id: req.actor.org, is_active: true });
+        if (!user) return res.status(404).json({ error: 'User not found or inactive.' });
 
-        const org = await Organization.findByPk(req.actor.org);
+        const org = await Organization.findById(req.actor.org);
         const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
+        const magicToken = signMagicLinkToken(user._id, org._id);
+        await redis.set(`magic_link:${magicToken}`, user._id.toString(), 86400);
+        const link = `${appBaseUrl}/portal?magic=${magicToken}`;
+        sendMail(user.email, `Your Magic Link — ${org.name}`, cohortMagicLinkEmail(user.name, org.name, link))
+            .catch(e => logger.error('Failed to send individual magic link:', e.message));
 
-        const magicToken = signMagicLinkToken(user.id, org.id);
-        await redis.set(`magic_link:${ magicToken }`, user.id.toString(), 86400);
-
-        const link = `${ appBaseUrl }/portal?magic=${ magicToken }`;
-        sendMail(
-            user.email,
-            `Your Magic Link — ${ org.name }`,
-            cohortMagicLinkEmail(user.name, org.name, link)
-        ).catch(e => logger.error('Failed to send individual magic link:', e.message));
-
-        auditLog.log('admin', req.actor.id, 'INDIVIDUAL_MAGIC_LINK_SENT', 'user', user.id, { email: user.email }, req);
+        auditLog.log('admin', req.actor.id, 'INDIVIDUAL_MAGIC_LINK_SENT', 'user', user._id, { email: user.email }, req);
         res.json({ message: 'Magic link sent successfully.' });
-    } catch(err) {
+    } catch (err) {
         logger.error('sendIndividualMagicLink error:', err.message);
         res.status(500).json({ error: 'Failed to send magic link.' });
     }
@@ -396,20 +291,18 @@ async function sendIndividualMagicLink (req, res) {
 /**
  * GET /api/admin/cohort/qr-batch
  */
-async function downloadQrBatch (req, res) {
+async function downloadQrBatch(req, res) {
     try {
-        const users = await User.findAll({ where: { organization_id: req.actor.org } });
-        const cards = await Card.findAll({
-            where: { user_id: users.map((u) => u.id) },
-        });
-        const org = await Organization.findByPk(req.actor.org);
+        const users = await User.find({ organization_id: req.actor.org, is_active: true }).lean();
+        const userIds = users.map(u => u._id);
+        const cards = await Card.find({ user_id: { $in: userIds }, is_active: true }).lean();
+        const org = await Organization.findById(req.actor.org).lean();
 
         const pdfBuffer = await generateQRBatchPDF(users, cards, org?.name || 'Organization');
-
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${ (org?.slug || 'org') }-qr-batch.pdf"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${(org?.slug || 'org')}-qr-batch.pdf"`);
         res.send(pdfBuffer);
-    } catch(err) {
+    } catch (err) {
         logger.error('downloadQrBatch error:', err.message);
         res.status(500).json({ error: 'Failed to generate QR batch.' });
     }
@@ -418,36 +311,27 @@ async function downloadQrBatch (req, res) {
 /**
  * PATCH /api/admin/settings
  */
-async function updateSettings (req, res) {
+async function updateSettings(req, res) {
     try {
-        const org = await Organization.findByPk(req.actor.org);
-        if(!org) return res.status(404).json({ error: 'Organization not found.' });
+        const org = await Organization.findById(req.actor.org);
+        if (!org) return res.status(404).json({ error: 'Organization not found.' });
 
-        const updates = {};
-        const allowedFields = [ 'name', 'brand_color', 'selected_card_template' ];
-        for(const field of allowedFields) {
-            if(req.body[ field ] !== undefined) updates[ field ] = req.body[ field ];
+        const allowedFields = ['name', 'brand_color', 'selected_card_template'];
+        for (const field of allowedFields) {
+            if (req.body[field] !== undefined) org[field] = req.body[field];
         }
 
-        // Handle logo upload
-        if(req.file) {
-            // Delete old logo if exists
-            if(org.logo_public_id) {
-                deleteAsset(org.logo_public_id).catch(() => {});
-            }
-            const result = await uploadStream(req.file.buffer, {
-                folder: `org_${ org.id }/branding`,
-                resource_type: 'image',
-            });
-            updates.logo_url = result.secure_url;
-            updates.logo_public_id = result.public_id;
+        if (req.file) {
+            if (org.logo_public_id) deleteAsset(org.logo_public_id).catch(() => {});
+            const result = await uploadStream(req.file.buffer, { folder: `org_${org._id}/branding`, resource_type: 'image' });
+            org.logo_url = result.secure_url;
+            org.logo_public_id = result.public_id;
         }
 
-        await org.update(updates);
-        auditLog.log('admin', req.actor.id, 'ORG_SETTINGS_UPDATED', 'organization', org.id, updates, req);
-
+        await org.save();
+        auditLog.log('admin', req.actor.id, 'ORG_SETTINGS_UPDATED', 'organization', org._id, req.body, req);
         res.json({ message: 'Settings updated.', organization: org });
-    } catch(err) {
+    } catch (err) {
         logger.error('updateSettings error:', err.message);
         res.status(500).json({ error: 'Failed to update settings.' });
     }
@@ -456,38 +340,39 @@ async function updateSettings (req, res) {
 /**
  * GET /api/admin/analytics
  */
-async function getAnalytics (req, res) {
+async function getAnalytics(req, res) {
     try {
         const orgId = req.actor.org;
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-        const [ memoryCount, totalUsers, activeUsers, org, pendingAlumniRequests ] = await Promise.all([
-            Memory.count({ where: { organization_id: orgId } }),
-            User.count({ where: { organization_id: orgId } }),
-            User.count({ where: { organization_id: orgId, last_login_at: { [ Op.gte ]: thirtyDaysAgo } } }),
-            Organization.findByPk(orgId, { attributes: [ 'storage_used_gb', 'storage_limit_gb' ] }),
-            AlumniRequest.count({ where: { organization_id: orgId, status: 'pending' } }),
+        const userDocs = await User.find({ organization_id: orgId, is_active: true }).select('_id last_login_at').lean();
+        const userIds = userDocs.map(u => u._id);
+
+        const [memoryCount, totalUsers, activeUsers, org, pendingAlumniRequests] = await Promise.all([
+            Memory.countDocuments({ organization_id: orgId, is_active: true }),
+            User.countDocuments({ organization_id: orgId, is_active: true }),
+            User.countDocuments({ organization_id: orgId, is_active: true, last_login_at: { $gte: thirtyDaysAgo } }),
+            Organization.findById(orgId).select('storage_used_gb storage_limit_gb').lean(),
+            AlumniRequest.countDocuments({ organization_id: orgId, status: 'pending', is_active: true }),
         ]);
 
-        // User IDs for this org
-        const userIds = (await User.findAll({ where: { organization_id: orgId }, attributes: [ 'id' ], raw: true })).map((u) => u.id);
+        const cardCount = userIds.length > 0 ? await Card.countDocuments({ user_id: { $in: userIds }, is_active: true }) : 0;
+        const scanAgg = userIds.length > 0 ? await Card.aggregate([
+            { $match: { user_id: { $in: userIds }, is_active: true } },
+            { $group: { _id: null, total: { $sum: '$scan_count' } } },
+        ]) : [];
+        const scanTotal = scanAgg[0]?.total || 0;
 
-        // Card count and scan total
-        const cardCount = userIds.length > 0 ? await Card.count({ where: { user_id: userIds } }) : 0;
-        const scanTotal = userIds.length > 0 ? (await Card.sum('scan_count', { where: { user_id: userIds } }) || 0) : 0;
+        const memoryIds = (await Memory.find({ organization_id: orgId, is_active: true }).select('_id').lean()).map(m => m._id);
+        const reactionCount = memoryIds.length > 0 ? await MemoryReaction.countDocuments({ memory_id: { $in: memoryIds }, is_active: true }) : 0;
 
-        // Memory reaction count
-        const memoryIds = (await Memory.findAll({ where: { organization_id: orgId }, attributes: [ 'id' ], raw: true })).map((m) => m.id);
-        const reactionCount = memoryIds.length > 0 ? await MemoryReaction.count({ where: { memory_id: memoryIds } }) : 0;
-
-        // Upload trend: last 7 days
         const uploadTrend = [];
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
             const dayStart = new Date(d); dayStart.setHours(0, 0, 0, 0);
             const dayEnd = new Date(d); dayEnd.setHours(23, 59, 59, 999);
-            const count = await Memory.count({ where: { organization_id: orgId, created_at: { [Op.between]: [dayStart, dayEnd] } } });
+            const count = await Memory.countDocuments({ organization_id: orgId, created_at: { $gte: dayStart, $lte: dayEnd }, is_active: true });
             uploadTrend.push({ day: d.toLocaleDateString('en-US', { weekday: 'short' }), uploads: count });
         }
 
@@ -506,77 +391,68 @@ async function getAnalytics (req, res) {
             upload_trend: uploadTrend,
             pendingAlumniRequests,
         });
-    } catch(err) {
+    } catch (err) {
         logger.error('getAnalytics error:', err.message);
         res.status(500).json({ error: 'Failed to load analytics.' });
     }
 }
 
-
 /**
  * GET /api/admin/memories
  */
-async function getMemories (req, res) {
+async function getMemories(req, res) {
     try {
         const { cursor, limit = 20, flagged, uploaded_by, branch, from_date, to_date } = req.query;
-        const where = { organization_id: req.actor.org, is_active: 1 };
-        if(flagged === 'true') where.is_flagged = 1;
-
-        if (uploaded_by) where.user_id = parseInt(uploaded_by);
-
+        const where = { organization_id: req.actor.org, is_active: true };
+        if (flagged === 'true') where.is_flagged = true;
+        if (uploaded_by) where.uploaded_by = uploaded_by;
         if (from_date || to_date) {
             where.created_at = {};
-            if (from_date) where.created_at[Op.gte] = new Date(from_date);
-            if (to_date) {
-                const toD = new Date(to_date);
-                toD.setHours(23, 59, 59, 999);
-                where.created_at[Op.lte] = toD;
-            }
+            if (from_date) where.created_at.$gte = new Date(from_date);
+            if (to_date) { const d = new Date(to_date); d.setHours(23, 59, 59, 999); where.created_at.$lte = d; }
         }
+        if (cursor) where._id = { $lt: cursor };
 
-        const uploaderInclude = {
-            model: User,
-            as: 'uploader',
-            attributes: [ 'id', 'name', 'avatar_url', 'branch' ],
-            required: !!branch,
-        };
-
+        let memQuery = Memory.find(where).sort({ _id: -1 }).limit(parseInt(limit) + 1);
         if (branch) {
-            uploaderInclude.where = { branch };
+            // need to filter by uploader branch — get user IDs first
+            const branchUserIds = (await User.find({ organization_id: req.actor.org, branch, is_active: true }).select('_id').lean()).map(u => u._id);
+            where.uploaded_by = { $in: branchUserIds };
         }
 
-        const result = await cursorPaginate(Memory, where, cursor, limit, [ [ 'id', 'DESC' ] ], {
-            include: [
-                uploaderInclude,
-                { model: MemoryReaction, attributes: [ 'id', 'emoji', 'user_id' ], required: false },
-            ],
-        });
+        const memories = await Memory.find(where).sort({ _id: -1 }).limit(parseInt(limit) + 1).lean();
+        const hasMore = memories.length > parseInt(limit);
+        const items = memories.slice(0, parseInt(limit));
+        const nextCursor = hasMore ? items[items.length - 1]._id : null;
 
-        // Process items to include reaction counts and viewer's own reactions
-        const items = result.items.map((memory) => {
-            const memObj = memory.toJSON();
-            const reactions = memObj.MemoryReactions || [];
+        // Attach uploader and reactions
+        const uploaderIds = [...new Set(items.map(m => m.uploaded_by?.toString()))];
+        const uploaders = await User.find({ _id: { $in: uploaderIds } }).select('_id name avatar_url branch').lean();
+        const uploaderMap = {};
+        for (const u of uploaders) uploaderMap[u._id.toString()] = u;
 
+        const memIds = items.map(m => m._id);
+        const reactions = await MemoryReaction.find({ memory_id: { $in: memIds }, is_active: true }).lean();
+        const reactionsByMemory = {};
+        for (const r of reactions) {
+            const key = r.memory_id.toString();
+            if (!reactionsByMemory[key]) reactionsByMemory[key] = [];
+            reactionsByMemory[key].push(r);
+        }
+
+        const result = items.map(memory => {
+            const memReactions = reactionsByMemory[memory._id.toString()] || [];
             const reactionCounts = {};
             const viewerReactions = [];
-            for(const r of reactions) {
-                reactionCounts[ r.emoji ] = (reactionCounts[ r.emoji ] || 0) + 1;
-                if(r.user_id === req.actor.id) {
-                    viewerReactions.push(r.emoji);
-                }
+            for (const r of memReactions) {
+                reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
+                if (r.user_id?.toString() === req.actor.id?.toString()) viewerReactions.push(r.emoji);
             }
-
-            delete memObj.MemoryReactions;
-            return {
-                ...memObj,
-                reaction_counts: reactionCounts,
-                viewer_reactions: viewerReactions,
-                total_reactions: reactions.length,
-            };
+            return { ...memory, uploader: uploaderMap[memory.uploaded_by?.toString()] || null, reaction_counts: reactionCounts, viewer_reactions: viewerReactions, total_reactions: memReactions.length };
         });
 
-        res.json({ items, nextCursor: result.nextCursor, hasMore: result.hasMore });
-    } catch(err) {
+        res.json({ items: result, nextCursor, hasMore });
+    } catch (err) {
         logger.error('getMemories error:', err.message);
         res.status(500).json({ error: 'Failed to load memories.' });
     }
@@ -585,15 +461,14 @@ async function getMemories (req, res) {
 /**
  * PATCH /api/admin/memories/:id/flag
  */
-async function flagMemory (req, res) {
+async function flagMemory(req, res) {
     try {
-        const memory = await Memory.findByPk(req.params.id);
-        if(!memory || memory.organization_id !== req.actor.org) {
-            return res.status(404).json({ error: 'Memory not found.' });
-        }
-        await memory.update({ is_flagged: memory.is_flagged ? 0 : 1 });
-        res.json({ message: `Memory ${ memory.is_flagged ? 'flagged' : 'unflagged' }.`, is_flagged: memory.is_flagged });
-    } catch(err) {
+        const memory = await Memory.findOne({ _id: req.params.id, organization_id: req.actor.org });
+        if (!memory) return res.status(404).json({ error: 'Memory not found.' });
+        memory.is_flagged = !memory.is_flagged;
+        await memory.save();
+        res.json({ message: `Memory ${memory.is_flagged ? 'flagged' : 'unflagged'}.`, is_flagged: memory.is_flagged });
+    } catch (err) {
         logger.error('flagMemory error:', err.message);
         res.status(500).json({ error: 'Failed to flag memory.' });
     }
@@ -602,16 +477,15 @@ async function flagMemory (req, res) {
 /**
  * DELETE /api/admin/memories/:id
  */
-async function deleteMemory (req, res) {
+async function deleteMemory(req, res) {
     try {
-        const memory = await Memory.findByPk(req.params.id);
-        if(!memory || memory.organization_id !== req.actor.org) {
-            return res.status(404).json({ error: 'Memory not found.' });
-        }
-        await memory.update({ is_active: 0 });
-        auditLog.log('admin', req.actor.id, 'MEMORY_DELETED', 'memory', memory.id, null, req);
+        const memory = await Memory.findOne({ _id: req.params.id, organization_id: req.actor.org });
+        if (!memory) return res.status(404).json({ error: 'Memory not found.' });
+        memory.is_active = false;
+        await memory.save();
+        auditLog.log('admin', req.actor.id, 'MEMORY_DELETED', 'memory', memory._id, null, req);
         res.json({ message: 'Memory deleted.' });
-    } catch(err) {
+    } catch (err) {
         logger.error('deleteMemory error:', err.message);
         res.status(500).json({ error: 'Failed to delete memory.' });
     }
@@ -620,32 +494,20 @@ async function deleteMemory (req, res) {
 /**
  * POST /api/admin/announce
  */
-async function announce (req, res) {
+async function announce(req, res) {
     try {
         const { subject, body } = req.body;
-        const org = await Organization.findByPk(req.actor.org);
-        const users = await User.findAll({ where: { organization_id: req.actor.org } });
-
+        const org = await Organization.findById(req.actor.org);
+        const users = await User.find({ organization_id: req.actor.org, is_active: true });
         let sent = 0;
-        for(const user of users) {
-            await Notification.create({
-                user_id: user.id,
-                type: 'announcement',
-                title: subject,
-                body,
-            });
-
-            sendMail(
-                user.email,
-                `${ subject } — ${ org.name }`,
-                announcementEmail(user.name, org.name, subject, body)
-            ).catch(() => {});
+        for (const user of users) {
+            await Notification.create({ user_id: user._id, type: 'announcement', title: subject, body });
+            sendMail(user.email, `${subject} — ${org.name}`, announcementEmail(user.name, org.name, subject, body)).catch(() => {});
             sent++;
         }
-
-        auditLog.log('admin', req.actor.id, 'ANNOUNCEMENT_SENT', 'organization', org.id, { subject, recipients: sent }, req);
-        res.json({ message: `Announcement sent to ${ sent } users.`, sent });
-    } catch(err) {
+        auditLog.log('admin', req.actor.id, 'ANNOUNCEMENT_SENT', 'organization', org._id, { subject, recipients: sent }, req);
+        res.json({ message: `Announcement sent to ${sent} users.`, sent });
+    } catch (err) {
         logger.error('announce error:', err.message);
         res.status(500).json({ error: 'Failed to send announcement.' });
     }
@@ -654,38 +516,28 @@ async function announce (req, res) {
 /**
  * POST /api/admin/co-admins/invite
  */
-async function inviteCoAdmin (req, res) {
+async function inviteCoAdmin(req, res) {
     try {
         const { email, name } = req.body;
-        const org = await Organization.findByPk(req.actor.org);
-
-        const existing = await Admin.findOne({ where: { email } });
-        if(existing) {
-            return res.status(409).json({ error: 'An admin with this email already exists.' });
-        }
+        const org = await Organization.findById(req.actor.org);
+        const existing = await Admin.findOne({ email });
+        if (existing) return res.status(409).json({ error: 'An admin with this email already exists.' });
 
         const onboardingToken = crypto.randomBytes(16).toString('hex');
         const admin = await Admin.create({
-            organization_id: org.id,
-            name,
-            email,
-            role: 'co_admin',
+            organization_id: org._id, name, email, role: 'co_admin',
             onboarding_token: onboardingToken,
             onboarding_token_expires_at: new Date(Date.now() + 72 * 60 * 60 * 1000),
         });
 
         const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
-        const setupUrl = `${ appBaseUrl }/admin/setup-password?token=${ onboardingToken }`;
+        const setupUrl = `${appBaseUrl}/admin/setup-password?token=${onboardingToken}`;
+        sendMail(email, `You're invited to manage ${org.name}`, onboardingEmail(name, org.name, setupUrl))
+            .catch(e => logger.error('Failed to send co-admin invite:', e.message));
 
-        sendMail(
-            email,
-            `You're invited to manage ${ org.name }`,
-            onboardingEmail(name, org.name, setupUrl)
-        ).catch((e) => logger.error('Failed to send co-admin invite:', e.message));
-
-        auditLog.log('admin', req.actor.id, 'CO_ADMIN_INVITED', 'admin', admin.id, { email }, req);
-        res.json({ message: 'Co-admin invited.', admin_id: admin.id });
-    } catch(err) {
+        auditLog.log('admin', req.actor.id, 'CO_ADMIN_INVITED', 'admin', admin._id, { email }, req);
+        res.json({ message: 'Co-admin invited.', admin_id: admin._id });
+    } catch (err) {
         logger.error('inviteCoAdmin error:', err.message);
         res.status(500).json({ error: 'Failed to invite co-admin.' });
     }
@@ -694,16 +546,15 @@ async function inviteCoAdmin (req, res) {
 /**
  * DELETE /api/admin/cohort/:id (soft delete)
  */
-async function softDeleteStudent (req, res) {
+async function softDeleteStudent(req, res) {
     try {
-        const user = await User.findByPk(req.params.id);
-        if(!user || user.organization_id !== req.actor.org) {
-            return res.status(404).json({ error: 'Student not found.' });
-        }
-        await user.update({ is_active: 0, deleted_at: new Date() });
-        auditLog.log('admin', req.actor.id, 'USER_SOFT_DELETED', 'user', user.id, { name: user.name }, req);
-        res.json({ message: `${ user.name } has been removed.` });
-    } catch(err) {
+        const user = await User.findOne({ _id: req.params.id, organization_id: req.actor.org, is_active: true });
+        if (!user) return res.status(404).json({ error: 'Student not found.' });
+        user.is_active = false;
+        await user.save();
+        auditLog.log('admin', req.actor.id, 'USER_SOFT_DELETED', 'user', user._id, { name: user.name }, req);
+        res.json({ message: `${user.name} has been removed.` });
+    } catch (err) {
         logger.error('softDeleteStudent error:', err.message);
         res.status(500).json({ error: 'Failed to remove student.' });
     }
@@ -712,30 +563,21 @@ async function softDeleteStudent (req, res) {
 /**
  * POST /api/admin/settings/back-image
  */
-async function uploadBackImage (req, res) {
+async function uploadBackImage(req, res) {
     try {
-        if(!req.file) return res.status(400).json({ error: 'Image file is required.' });
-        const org = await Organization.findByPk(req.actor.org);
-        if(!org) return res.status(404).json({ error: 'Organization not found.' });
+        if (!req.file) return res.status(400).json({ error: 'Image file is required.' });
+        const org = await Organization.findById(req.actor.org);
+        if (!org) return res.status(404).json({ error: 'Organization not found.' });
 
-        // Delete old back image if exists
-        if(org.card_back_public_id) {
-            deleteAsset(org.card_back_public_id).catch(() => {});
-        }
+        if (org.card_back_public_id) deleteAsset(org.card_back_public_id).catch(() => {});
+        const result = await uploadStream(req.file.buffer, { folder: `org_${org._id}/branding`, resource_type: 'image' });
+        org.card_back_image_url = result.secure_url;
+        org.card_back_public_id = result.public_id;
+        await org.save();
 
-        const result = await uploadStream(req.file.buffer, {
-            folder: `org_${ org.id }/branding`,
-            resource_type: 'image',
-        });
-
-        await org.update({
-            card_back_image_url: result.secure_url,
-            card_back_public_id: result.public_id,
-        });
-
-        auditLog.log('admin', req.actor.id, 'BACK_IMAGE_UPLOADED', 'organization', org.id, null, req);
+        auditLog.log('admin', req.actor.id, 'BACK_IMAGE_UPLOADED', 'organization', org._id, null, req);
         res.json({ message: 'Back image uploaded.', url: result.secure_url });
-    } catch(err) {
+    } catch (err) {
         logger.error('uploadBackImage error:', err.message);
         res.status(500).json({ error: 'Failed to upload back image.' });
     }
@@ -744,21 +586,12 @@ async function uploadBackImage (req, res) {
 /**
  * GET /api/admin/alumni-requests
  */
-async function getAlumniRequests (req, res) {
+async function getAlumniRequests(req, res) {
     try {
         const { status = 'pending' } = req.query;
-        const where = {
-            organization_id: req.actor.org,
-            status,
-        };
-
-        const requests = await AlumniRequest.findAll({
-            where,
-            order: [ [ 'created_at', 'DESC' ] ],
-        });
-
+        const requests = await AlumniRequest.find({ organization_id: req.actor.org, status, is_active: true }).sort({ created_at: -1 });
         res.json({ requests });
-    } catch(err) {
+    } catch (err) {
         logger.error('getAlumniRequests error:', err.message);
         res.status(500).json({ error: 'Failed to load alumni requests.' });
     }
@@ -767,124 +600,76 @@ async function getAlumniRequests (req, res) {
 /**
  * PATCH /api/admin/alumni-requests/:id/approve
  */
-async function approveAlumniRequest (req, res) {
-    const t = await sequelize.transaction();
+async function approveAlumniRequest(req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const requestRow = await AlumniRequest.findOne({
-            where: {
-                id: req.params.id,
-                organization_id: req.actor.org,
-                status: 'pending',
-            },
-            transaction: t,
-            lock: t.LOCK.UPDATE,
-        });
-
-        if(!requestRow) {
-            await t.rollback();
+            _id: req.params.id, organization_id: req.actor.org, status: 'pending',
+        }).session(session);
+        if (!requestRow) {
+            await session.abortTransaction();
             return res.status(404).json({ error: 'Alumni request not found.' });
         }
 
         let user = null;
-        if(requestRow.user_id) {
-            user = await User.scope('withInactive').findOne({
-                where: { id: requestRow.user_id, organization_id: req.actor.org },
-                transaction: t,
-            });
+        if (requestRow.user_id) {
+            user = await User.findOne({ _id: requestRow.user_id, organization_id: req.actor.org }).session(session);
         }
-
-        if(!user) {
-            user = await User.scope('withInactive').findOne({
-                where: {
-                    organization_id: req.actor.org,
-                    email: requestRow.email,
-                },
-                transaction: t,
-            });
+        if (!user) {
+            user = await User.findOne({ organization_id: req.actor.org, email: requestRow.email }).session(session);
         }
-
-        if(!user) {
-            user = await User.create({
-                organization_id: req.actor.org,
-                name: requestRow.name,
-                email: requestRow.email,
-                branch: requestRow.branch,
-                batch_year: requestRow.batch_year,
-                role: 'alumni',
-            }, { transaction: t });
+        if (!user) {
+            user = new User({ organization_id: req.actor.org, name: requestRow.name, email: requestRow.email, branch: requestRow.branch, batch_year: requestRow.batch_year, role: 'alumni' });
+            await user.save({ session });
         } else {
-            await user.update({ role: 'alumni', is_active: 1 }, { transaction: t });
+            user.role = 'alumni';
+            user.is_active = true;
+            await user.save({ session });
         }
 
-        await requestRow.update({
-            status: 'approved',
-            reviewed_by: req.actor.id,
-            reviewed_at: new Date(),
-            user_id: user.id,
-            rejection_reason: null,
-        }, { transaction: t });
+        requestRow.status = 'approved';
+        requestRow.reviewed_by = req.actor.id;
+        requestRow.reviewed_at = new Date();
+        requestRow.user_id = user._id;
+        requestRow.rejection_reason = null;
+        await requestRow.save({ session });
+        await session.commitTransaction();
 
-        await t.commit();
-
-        createUserNotification(user.id, {
-            type: 'approval',
-            title: 'Alumni request approved',
-            body: 'Your alumni access is now active.',
-            action_url: '/alumni',
-        }).catch(() => {});
-
-        auditLog.log('admin', req.actor.id, 'ALUMNI_REQUEST_APPROVED', 'alumni_request', requestRow.id, {
-            user_id: user.id,
-        }, req);
-
-        res.json({ message: 'Alumni request approved.', user_id: user.id });
-    } catch(err) {
-        await t.rollback();
+        createUserNotification(user._id, { type: 'approval', title: 'Alumni request approved', body: 'Your alumni access is now active.', action_url: '/alumni' }).catch(() => {});
+        auditLog.log('admin', req.actor.id, 'ALUMNI_REQUEST_APPROVED', 'alumni_request', requestRow._id, { user_id: user._id }, req);
+        res.json({ message: 'Alumni request approved.', user_id: user._id });
+    } catch (err) {
+        await session.abortTransaction();
         logger.error('approveAlumniRequest error:', err.message);
         res.status(500).json({ error: 'Failed to approve alumni request.' });
+    } finally {
+        session.endSession();
     }
 }
 
 /**
  * PATCH /api/admin/alumni-requests/:id/reject
  */
-async function rejectAlumniRequest (req, res) {
+async function rejectAlumniRequest(req, res) {
     try {
         const { reason } = req.body;
-        const requestRow = await AlumniRequest.findOne({
-            where: {
-                id: req.params.id,
-                organization_id: req.actor.org,
-                status: 'pending',
-            },
-        });
+        const requestRow = await AlumniRequest.findOne({ _id: req.params.id, organization_id: req.actor.org, status: 'pending' });
+        if (!requestRow) return res.status(404).json({ error: 'Alumni request not found.' });
 
-        if(!requestRow) {
-            return res.status(404).json({ error: 'Alumni request not found.' });
+        requestRow.status = 'rejected';
+        requestRow.rejection_reason = reason || 'Request rejected by admin.';
+        requestRow.reviewed_by = req.actor.id;
+        requestRow.reviewed_at = new Date();
+        await requestRow.save();
+
+        if (requestRow.user_id) {
+            createUserNotification(requestRow.user_id, { type: 'system', title: 'Alumni request update', body: requestRow.rejection_reason, action_url: '/portal?tab=profile' }).catch(() => {});
         }
 
-        await requestRow.update({
-            status: 'rejected',
-            rejection_reason: reason || 'Request rejected by admin.',
-            reviewed_by: req.actor.id,
-            reviewed_at: new Date(),
-        });
-
-        if(requestRow.user_id) {
-            createUserNotification(requestRow.user_id, {
-                type: 'system',
-                title: 'Alumni request update',
-                body: requestRow.rejection_reason,
-                action_url: '/portal?tab=profile',
-            }).catch(() => {});
-        }
-
-        auditLog.log('admin', req.actor.id, 'ALUMNI_REQUEST_REJECTED', 'alumni_request', requestRow.id, {
-            reason: requestRow.rejection_reason,
-        }, req);
-
+        auditLog.log('admin', req.actor.id, 'ALUMNI_REQUEST_REJECTED', 'alumni_request', requestRow._id, { reason: requestRow.rejection_reason }, req);
         res.json({ message: 'Alumni request rejected.' });
-    } catch(err) {
+    } catch (err) {
         logger.error('rejectAlumniRequest error:', err.message);
         res.status(500).json({ error: 'Failed to reject alumni request.' });
     }
@@ -895,4 +680,3 @@ module.exports = {
     getAnalytics, getMemories, flagMemory, deleteMemory, announce, inviteCoAdmin, editStudent,
     softDeleteStudent, uploadBackImage, getAlumniRequests, approveAlumniRequest, rejectAlumniRequest,
 };
-

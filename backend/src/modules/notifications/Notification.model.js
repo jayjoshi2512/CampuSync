@@ -1,53 +1,19 @@
-// backend/models/Notification.js
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../../../config/database');
+// backend/src/modules/notifications/Notification.model.js
+const mongoose = require('mongoose');
 
-const Notification = sequelize.define('Notification', {
-  id: {
-    type: DataTypes.INTEGER.UNSIGNED,
-    autoIncrement: true,
-    primaryKey: true,
-  },
-  user_id: {
-    type: DataTypes.INTEGER.UNSIGNED,
-    allowNull: false,
-  },
-  type: {
-    type: DataTypes.ENUM('new_memory', 'announcement', 'magic_link', 'approval', 'system'),
-    allowNull: false,
-  },
-  title: {
-    type: DataTypes.STRING(255),
-    allowNull: false,
-  },
-  body: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-  },
-  action_url: {
-    type: DataTypes.STRING(512),
-    allowNull: true,
-  },
-  is_read: {
-    type: DataTypes.TINYINT(1),
-    defaultValue: 0,
-  },
-  is_active: {
-    type: DataTypes.TINYINT(1),
-    allowNull: false,
-    defaultValue: 1,
-  },
+const notificationSchema = new mongoose.Schema({
+  user_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  type:       { type: String, enum: ['new_memory', 'announcement', 'magic_link', 'approval', 'system'], required: true },
+  title:      { type: String, required: true },
+  body:       { type: String, default: null },
+  action_url: { type: String, default: null },
+  is_read:    { type: Boolean, default: false },
+  is_active:  { type: Boolean, default: true },
 }, {
-  tableName: 'notifications',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: false,
-  defaultScope: {
-    where: { is_active: 1 },
-  },
-  scopes: {
-    withInactive: { where: {} },
-  },
+  timestamps: { createdAt: 'created_at', updatedAt: false },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
 
+const Notification = mongoose.model('Notification', notificationSchema);
 module.exports = Notification;

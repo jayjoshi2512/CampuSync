@@ -35,8 +35,8 @@ async function verifySuperAdminJWT (req, res, next) {
         }
 
         // Verify actor exists and is active in DB
-        const superAdmin = await SuperAdmin.findByPk(decoded.sub);
-        if(!superAdmin || superAdmin.is_active !== 1) {
+        const superAdmin = await SuperAdmin.findById(decoded.sub);
+        if(!superAdmin || superAdmin.is_active !== true) {
             return res.status(401).json({ error: 'Account not found or deactivated' });
         }
 
@@ -73,8 +73,8 @@ async function verifyAdminJWT (req, res, next) {
         const decoded = verifyToken(token, 'admin');
 
         // Verify actor exists and is active in DB
-        const admin = await Admin.findByPk(decoded.sub);
-        if(!admin || admin.is_active !== 1) {
+        const admin = await Admin.findById(decoded.sub);
+        if(!admin || !admin.is_active) {
             return res.status(401).json({ error: 'Account not found or deactivated' });
         }
 
@@ -113,8 +113,8 @@ async function verifyUserJWT (req, res, next) {
         const decoded = verifyToken(token, 'user');
 
         // Verify actor exists and is active in DB
-        const user = await User.findByPk(decoded.sub);
-        if(!user || user.is_active !== 1) {
+        const user = await User.findById(decoded.sub);
+        if(!user || !user.is_active) {
             return res.status(401).json({ error: 'Account not found or deactivated' });
         }
 

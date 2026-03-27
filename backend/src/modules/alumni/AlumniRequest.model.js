@@ -1,84 +1,29 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../../../config/database');
+// backend/src/modules/alumni/AlumniRequest.model.js
+const mongoose = require('mongoose');
 
-const AlumniRequest = sequelize.define('AlumniRequest', {
-    id: {
-        type: DataTypes.INTEGER.UNSIGNED,
-        autoIncrement: true,
-        primaryKey: true,
-    },
-    organization_id: {
-        type: DataTypes.INTEGER.UNSIGNED,
-        allowNull: false,
-    },
-    user_id: {
-        type: DataTypes.INTEGER.UNSIGNED,
-        allowNull: true,
-    },
-    name: {
-        type: DataTypes.STRING(255),
-        allowNull: false,
-    },
-    email: {
-        type: DataTypes.STRING(255),
-        allowNull: false,
-        validate: { isEmail: true },
-    },
-    branch: {
-        type: DataTypes.STRING(150),
-        allowNull: true,
-    },
-    batch_year: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-    },
-    linkedin_url: {
-        type: DataTypes.STRING(512),
-        allowNull: true,
-    },
-    reason: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-    },
-    status: {
-        type: DataTypes.ENUM('pending', 'approved', 'rejected'),
-        allowNull: false,
-        defaultValue: 'pending',
-    },
-    rejection_reason: {
-        type: DataTypes.STRING(500),
-        allowNull: true,
-    },
-    reviewed_by: {
-        type: DataTypes.INTEGER.UNSIGNED,
-        allowNull: true,
-    },
-    reviewed_at: {
-        type: DataTypes.DATE,
-        allowNull: true,
-    },
-    is_active: {
-        type: DataTypes.TINYINT(1),
-        allowNull: false,
-        defaultValue: 1,
-    },
+const alumniRequestSchema = new mongoose.Schema({
+  organization_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
+  user_id:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  name:             { type: String, required: true },
+  email:            { type: String, required: true, match: /.+\@.+\..+/ },
+  branch:           { type: String, default: null },
+  batch_year:       { type: Number, default: null },
+  linkedin_url:     { type: String, default: null },
+  reason:           { type: String, default: null },
+  status:           { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  rejection_reason: { type: String, default: null },
+  reviewed_by:      { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null },
+  reviewed_at:      { type: Date, default: null },
+  is_active:        { type: Boolean, default: true },
 }, {
-    tableName: 'alumni_requests',
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    defaultScope: {
-        where: { is_active: 1 },
-    },
-    scopes: {
-        withInactive: { where: {} },
-    },
-    indexes: [
-        { fields: [ 'organization_id' ] },
-        { fields: [ 'email' ] },
-        { fields: [ 'status' ] },
-        { fields: [ 'user_id' ] },
-    ],
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
 
+alumniRequestSchema.index({ organization_id: 1 });
+alumniRequestSchema.index({ email: 1 });
+alumniRequestSchema.index({ status: 1 });
+
+const AlumniRequest = mongoose.model('AlumniRequest', alumniRequestSchema);
 module.exports = AlumniRequest;

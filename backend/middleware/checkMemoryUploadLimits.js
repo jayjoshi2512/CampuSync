@@ -1,5 +1,4 @@
 const { Memory } = require('../src/modules/models');
-const { Op } = require('sequelize');
 
 const FREE_LIMITS = {
     imageCount: 5,
@@ -8,16 +7,16 @@ const FREE_LIMITS = {
     videoSizeMb: 200,
 };
 
-function monthRange () {
+function monthRange() {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
     return { start, end };
 }
 
-async function checkMemoryUploadLimits (req, res, next) {
+async function checkMemoryUploadLimits(req, res, next) {
     try {
-        if(!req.file) {
+        if (!req.file) {
             return res.status(400).json({ error: 'File is required.' });
         }
 
@@ -27,9 +26,9 @@ async function checkMemoryUploadLimits (req, res, next) {
 
         // Per-file size guard
         const maxSizeMb = isVideo ? FREE_LIMITS.videoSizeMb : FREE_LIMITS.imageSizeMb;
-        if(fileSizeMb > maxSizeMb) {
+        if (fileSizeMb > maxSizeMb) {
             return res.status(413).json({
-                error: `${ isVideo ? 'Video' : 'Image' } exceeds ${ maxSizeMb }MB limit for free plan.`,
+                error: `${isVideo ? 'Video' : 'Image'} exceeds ${maxSizeMb}MB limit for free plan.`,
                 details: {
                     media_type: mediaType,
                     file_size_mb: Number(fileSizeMb.toFixed(2)),
@@ -40,7 +39,7 @@ async function checkMemoryUploadLimits (req, res, next) {
 
         // Only enforce monthly quantity limits for free-plan orgs
         const plan = (req.org?.plan || 'free').toLowerCase();
-        if(plan !== 'free') {
+        if (plan !== 'free') {
             return next();
         }
 
@@ -48,19 +47,16 @@ async function checkMemoryUploadLimits (req, res, next) {
         const baseWhere = {
             organization_id: req.actor.org,
             uploaded_by: req.actor.id,
-            is_active: 1,
-            created_at: {
-                [ Op.gte ]: start,
-                [ Op.lt ]: end,
-            },
+            is_active: true,
+            created_at: { $gte: start, $lt: end },
         };
 
-        const [ photoCount, videoCount ] = await Promise.all([
-            Memory.count({ where: { ...baseWhere, media_type: 'photo' } }),
-            Memory.count({ where: { ...baseWhere, media_type: 'video' } }),
+        const [photoCount, videoCount] = await Promise.all([
+            Memory.countDocuments({ ...baseWhere, media_type: 'photo' }),
+            Memory.countDocuments({ ...baseWhere, media_type: 'video' }),
         ]);
 
-        if(!isVideo && photoCount >= FREE_LIMITS.imageCount) {
+        if (!isVideo && photoCount >= FREE_LIMITS.imageCount) {
             return res.status(429).json({
                 error: 'Monthly image upload limit reached for free plan.',
                 details: {
@@ -71,7 +67,7 @@ async function checkMemoryUploadLimits (req, res, next) {
             });
         }
 
-        if(isVideo && videoCount >= FREE_LIMITS.videoCount) {
+        if (isVideo && videoCount >= FREE_LIMITS.videoCount) {
             return res.status(429).json({
                 error: 'Monthly video upload limit reached for free plan.',
                 details: {
@@ -95,7 +91,7 @@ async function checkMemoryUploadLimits (req, res, next) {
         };
 
         next();
-    } catch(err) {
+    } catch (err) {
         return res.status(500).json({ error: 'Failed to enforce upload limits.' });
     }
 }

@@ -34,7 +34,7 @@ async function generateQRBatchPDF (users, cards, orgName) {
                 margin: 40,
                 info: {
                     Title: `${ orgName } — QR Codes Batch`,
-                    Author: 'NexUs',
+                    Author: 'CampuSync',
                 },
             });
 

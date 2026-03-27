@@ -1,86 +1,27 @@
-// backend/models/Memory.js
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../../../config/database');
+// backend/src/modules/memories/Memory.model.js
+const mongoose = require('mongoose');
 
-const Memory = sequelize.define('Memory', {
-  id: {
-    type: DataTypes.INTEGER.UNSIGNED,
-    autoIncrement: true,
-    primaryKey: true,
-  },
-  organization_id: {
-    type: DataTypes.INTEGER.UNSIGNED,
-    allowNull: false,
-  },
-  uploaded_by: {
-    type: DataTypes.INTEGER.UNSIGNED,
-    allowNull: false,
-  },
-  media_type: {
-    type: DataTypes.ENUM('photo', 'video'),
-    allowNull: false,
-  },
-  cloudinary_url: {
-    type: DataTypes.STRING(512),
-    allowNull: false,
-  },
-  public_id: {
-    type: DataTypes.STRING(255),
-    allowNull: false,
-  },
-  thumbnail_url: {
-    type: DataTypes.STRING(512),
-    allowNull: true,
-  },
-  width: {
-    type: DataTypes.SMALLINT.UNSIGNED,
-    allowNull: true,
-  },
-  height: {
-    type: DataTypes.SMALLINT.UNSIGNED,
-    allowNull: true,
-  },
-  duration_sec: {
-    type: DataTypes.SMALLINT.UNSIGNED,
-    allowNull: true,
-  },
-  file_size_mb: {
-    type: DataTypes.DECIMAL(8, 3),
-    allowNull: true,
-  },
-  caption: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-  },
-  album: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    defaultValue: 'General',
-  },
-  status: {
-    type: DataTypes.TINYINT(1),
-    defaultValue: 0,
-  },
-  is_flagged: {
-    type: DataTypes.TINYINT(1),
-    defaultValue: 0,
-  },
-  is_active: {
-    type: DataTypes.TINYINT(1),
-    allowNull: false,
-    defaultValue: 1,
-  },
+const memorySchema = new mongoose.Schema({
+  organization_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
+  uploaded_by:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  media_type:      { type: String, enum: ['photo', 'video'], required: true },
+  cloudinary_url:  { type: String, required: true },
+  public_id:       { type: String, required: true },
+  thumbnail_url:   { type: String, default: null },
+  width:           { type: Number, default: null },
+  height:          { type: Number, default: null },
+  duration_sec:    { type: Number, default: null },
+  file_size_mb:    { type: Number, default: null },
+  caption:         { type: String, default: null },
+  album:           { type: String, default: 'General' },
+  status:          { type: Number, default: 0 },      // 0=pending, 1=approved
+  is_flagged:      { type: Boolean, default: false },
+  is_active:       { type: Boolean, default: true },
 }, {
-  tableName: 'memories',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
-  defaultScope: {
-    where: { is_active: 1 },
-  },
-  scopes: {
-    withInactive: { where: {} },
-  },
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
 
+const Memory = mongoose.model('Memory', memorySchema);
 module.exports = Memory;
