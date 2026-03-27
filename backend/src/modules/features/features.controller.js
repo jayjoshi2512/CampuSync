@@ -19,6 +19,7 @@ async function updateFeatures(req, res) {
         if (!org) return res.status(404).json({ error: 'Organization not found' });
 
         org.features_data = { ...(org.features_data || {}), ...req.body };
+        org.markModified('features_data');
         await org.save();
         res.json({ features: org.features_data });
     } catch (err) {

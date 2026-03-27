@@ -9,9 +9,11 @@ interface UserProfileTabProps {
 }
 
 export default function UserProfileTab({ actor, isDemo, toast, profileScore }: UserProfileTabProps) {
+  const isGrowthPlan = actor?.organization?.plan === "growth" || actor?.organization?.plan === "demo";
+
   return (
     <div className="py-[28px] px-[36px]">
-      {actor?.role === "user" && (
+      {actor?.role === "user" && isGrowthPlan && (
         <div className="mb-[20px] py-[16px] px-[22px] rounded-[16px] bg-gradient-to-r from-[var(--color-bg-secondary)] to-[var(--color-bg-tertiary)] border border-[var(--color-border-subtle)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
           <div>
             <h3 className="m-0 text-[16px] font-bold text-[var(--color-text-primary)] mb-[4px] flex items-center gap-2">🎓 Unlock Your Alumni Network</h3>

@@ -91,9 +91,13 @@ async function verifyMagicLink(req, res) {
         const user = await User.findById(userId);
         if (!user || !user.is_active) return res.status(400).json({ error: 'User not found or inactive.' });
 
+        if (!user.password_hash) {
+            return res.status(403).json({ error: 'Setup Required', redirectUrl: `/setup-password?token=${token}` });
+        }
+
         await redis.del(`magic_link:${token}`);
         user.last_login_at = new Date();
-        await user.save();
+        await user.updateOne({ $set: { last_login_at: user.last_login_at } });
 
         const jwtToken = signUserToken(user);
         const org = await Organization.findById(user.organization_id).select('_id name slug plan brand_color brand_color_rgb logo_url selected_card_template card_back_image_url');
@@ -147,7 +151,7 @@ async function login(req, res) {
 
         const user = await User.findOne({ email, is_active: true });
         if (!user) return res.status(401).json({ error: 'Invalid email or password.' });
-        if (!user.password_hash) return res.status(401).json({ error: 'Please use a magic link to log in for the first time.' });
+        if (!user.password_hash) return res.status(401).json({ error: 'Please set up your password first using the link sent to your email.' });
 
         const isValid = await user.validatePassword(password);
         if (!isValid) return res.status(401).json({ error: 'Invalid email or password.' });
@@ -261,4 +265,60 @@ async function getMe(req, res) {
     }
 }
 
-module.exports = { requestMagicLink, verifyMagicLink, qrLogin, login, forgotPassword, resetPassword, changePassword, getMe };
+async function setupPassword(req, res) {
+    try {
+        const { token, password } = req.body;
+        if (!token || !password || password.length < 8) return res.status(400).json({ error: 'Valid token and password (min 8 chars) required.' });
+
+        let decoded;
+        try { decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET_MAGIC_LINK); }
+        catch (e) { return res.status(401).json({ error: 'Invalid or expired setup token.' }); }
+
+        if (decoded.type !== 'magic_link') return res.status(400).json({ error: 'Invalid token type.' });
+
+        const cachedUserId = await redis.get(`magic_link:${token}`);
+        if (!cachedUserId || cachedUserId.toString() !== decoded.sub.toString()) {
+            return res.status(401).json({ error: 'Setup link has expired or already been used.' });
+        }
+
+        const user = await User.findById(decoded.sub);
+        if (!user || user.organization_id.toString() !== decoded.org.toString()) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        user.password_hash = password;
+        user.is_active = true;
+        await user.save();
+
+        await redis.del(`magic_link:${token}`);
+
+        auditLog.log('user', user._id, 'PASSWORD_SETUP', 'user', user._id, {}, req);
+        res.json({ message: 'Password set successfully.' });
+    } catch (err) {
+        logger.error('setupPassword error:', err.message);
+        res.status(500).json({ error: 'Failed to setup password.' });
+    }
+}
+
+async function becomeAlumni(req, res) {
+    try {
+        const user = await User.findById(req.actor.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        
+        const org = await Organization.findById(user.organization_id);
+        if (!org || (org.plan !== 'growth' && org.plan !== 'demo')) {
+            return res.status(403).json({ error: 'Alumni features require the Growth plan.' });
+        }
+
+        user.role = 'alumni';
+        await user.save();
+        
+        const token = signUserToken(user);
+        res.json({ message: 'Successfully became an alumni!', token, actor: await buildActorResponse(user, org) });
+    } catch (err) {
+        logger.error('becomeAlumni error:', err.message);
+        res.status(500).json({ error: 'Failed to update role.' });
+    }
+}
+
+module.exports = { requestMagicLink, verifyMagicLink, qrLogin, login, forgotPassword, resetPassword, changePassword, getMe, setupPassword, becomeAlumni };

@@ -7,7 +7,6 @@ import OrgThemeProvider from "@/components/OrgThemeProvider";
 import SidebarShell from "@/components/layout/SidebarShell";
 import PortalHeader from "@/components/layout/PortalHeader";
 import PortalExtra from "@/components/layout/PortalExtra";
-import AlumniHomeTab from "@/components/student/AlumniHomeTab";
 import Directory from "@/components/student/Directory";
 import EventsTab from "@/components/student/EventsTab";
 import JobsTab from "@/components/student/JobsTab";
@@ -25,11 +24,10 @@ import { useToast } from "@/components/ToastProvider";
 import api from "@/utils/api";
 import { CardData } from "@/components/CardViewer";
 
-const ALUMNI_TABS = [
-  { key: "home", label: "Home", icon: User },
+const BASE_ALUMNI_TABS = [
+  { key: "card", label: "My Card", icon: CreditCard },
   { key: "directory", label: "Alumni Network", icon: Users },
   { key: "memories", label: "Memory Wall", icon: Image },
-  { key: "card", label: "Alumni Card", icon: CreditCard },
   { key: "profile", label: "Profile", icon: User },
   { key: "growth_header", label: "Growth Plan Features", isGroupHeader: true },
   { key: "events", label: "Events", icon: Calendar },
@@ -50,7 +48,7 @@ function calculateProfileScore(actor: any): number {
 
 export default function AlumniPortal() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") || "home";
+  const initialTab = searchParams.get("tab") || "card";
   const [tab, setTab] = useState(initialTab);
   
   const [showUploader, setShowUploader] = useState(false);
@@ -82,6 +80,12 @@ export default function AlumniPortal() {
   const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
   const [branches, setBranches] = useState<string[]>([]);
   const [memoryUsage, setMemoryUsage] = useState<any>(null);
+  const [mentorBadge, setMentorBadge] = useState(0);
+
+  // Compute tabs with dynamic badge
+  const alumniTabs = BASE_ALUMNI_TABS.map(t => 
+    t.key === 'mentors' && mentorBadge > 0 ? { ...t, badge: mentorBadge } : t
+  );
 
   useEffect(() => {
     if (
@@ -93,8 +97,8 @@ export default function AlumniPortal() {
   }, [fetchMemories, isMagicLogin, isDemo, tab]);
 
   useEffect(() => {
-    if (!ALUMNI_TABS.some((t) => t.key === tab)) {
-      setTab(ALUMNI_TABS[0].key);
+    if (!alumniTabs.some((t) => t.key === tab)) {
+      setTab(alumniTabs[0].key);
     }
   }, [tab]);
 
@@ -152,6 +156,19 @@ export default function AlumniPortal() {
       .catch(() => setMemoryUsage(null));
   }, [isDemo, actor?.id]);
 
+  // Fetch mentorship badge count for sidebar
+  useEffect(() => {
+    if (isDemo || !actor?.id) return;
+    const fetchBadge = () => {
+      api.get("/mentorship/badges", { _silent: true } as any).then(({ data }) => {
+        setMentorBadge(data.pending_student_requests || 0);
+      }).catch(() => {});
+    };
+    fetchBadge();
+    const interval = setInterval(fetchBadge, 30000);
+    return () => clearInterval(interval);
+  }, [isDemo, actor?.id]);
+
   const baseCardData: CardData = {
     name: actor?.name || "Alumni",
     roll_number: actor?.roll_number || "",
@@ -188,7 +205,7 @@ export default function AlumniPortal() {
 
       <SidebarShell
         header={<PortalHeader actor={actor} isAlumniExperience={true} isDemo={!!isDemo} orgPlan={orgPlan} />}
-        tabs={ALUMNI_TABS}
+        tabs={alumniTabs}
         activeTab={tab}
         onTabChange={(k) => {
           if (k === "growth_header") return;
@@ -197,7 +214,6 @@ export default function AlumniPortal() {
         extra={<PortalExtra actor={actor} memoryUsage={memoryUsage} orgPlan={orgPlan} isGrowthPlan={isGrowthPlan} />}
         signOutPath="/"
       >
-          {tab === "home" && <AlumniHomeTab actor={actor} setTab={setTab} isCompactLayout={isCompactLayout} />}
           {tab === "card" && (
             <StudentCardTab
               isCompactLayout={isCompactLayout}
@@ -233,10 +249,10 @@ export default function AlumniPortal() {
             />
           )}
 
-          {tab === "directory" && <Directory />}
+          {tab === "directory" && <Directory filterRole="alumni" />}
           {tab === "events" && <EventsTab />}
           {tab === "jobs" && <JobsTab />}
-          {tab === "mentors" && <MentorsTab />}
+          {tab === "mentors" && <MentorsTab isAlumniExperience={true} />}
           {tab === "profile" && <UserProfileTab actor={actor} isDemo={!!isDemo} toast={toast} profileScore={calculateProfileScore(actor)} />}
       </SidebarShell>
 

@@ -201,7 +201,7 @@ export default function AdminCohortModals({
                         ? setEditData({ ...editData, role: e.target.value })
                         : setManualData({ ...manualData, role: e.target.value })
                     }
-                    style={{ ...inputStyle, WebkitAppearance: "none" }}
+                    style={inputStyle}
                   >
                     <option value="user">Student</option>
                     <option value="alumni">Alumni/Mentor</option>

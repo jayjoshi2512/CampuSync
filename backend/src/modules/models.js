@@ -15,6 +15,8 @@ const Payment       = require('./billing/Payment.model.js');
 const AuditLog      = require('./admin/AuditLog.model.js');
 const CardScanEvent = require('./cards/CardScanEvent.model.js');
 const AlumniRequest = require('./alumni/AlumniRequest.model.js');
+const MentorProfile = require('./mentorship/MentorProfile.model.js');
+const MentorshipRequest = require('./mentorship/MentorshipRequest.model.js');
 
 module.exports = {
     SuperAdmin,
@@ -30,4 +32,6 @@ module.exports = {
     AuditLog,
     CardScanEvent,
     AlumniRequest,
+    MentorProfile,
+    MentorshipRequest,
 };

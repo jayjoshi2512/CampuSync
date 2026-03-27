@@ -19,11 +19,10 @@ const adminSchema = new mongoose.Schema({
   toObject: { virtuals: true },
 });
 
-adminSchema.pre('save', async function (next) {
+adminSchema.pre('save', async function () {
   if (this.isModified('password_hash') && this.password_hash && !this.password_hash.startsWith('$2')) {
     this.password_hash = await bcrypt.hash(this.password_hash, 12);
   }
-  next();
 });
 
 adminSchema.methods.validatePassword = async function (rawPassword) {

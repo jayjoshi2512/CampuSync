@@ -143,19 +143,42 @@ export default function RegisterPage() {
         width={400}
         title={
           <>
-            <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, lineHeight: 1.1 }}>
-              <span style={{ color: "var(--color-brand)" }}>Nex</span>
-              <span style={{ color: "var(--color-text-primary)" }}>Us</span>
+            <div
+              style={{
+                fontSize: 22,
+                fontWeight: 800,
+                marginBottom: 4,
+                lineHeight: 1.1,
+              }}
+            >
+              <span style={{ color: "var(--color-text-primary)" }}>Campu</span>
+              <span style={{ color: "var(--color-brand)" }}>Sync</span>
             </div>
             <span>Bring your institution online</span>
           </>
         }
         description="Register to create digital ID cards, a shared memory wall, and a full alumni engagement platform for your institution."
         features={[
-          { icon: Building2, text: "Supports universities, schools & corporates", color: "#6366F1" },
-          { icon: GraduationCap, text: "Digital ID cards with QR-based access", color: "#10B981" },
-          { icon: Users, text: "Alumni network & memory wall included", color: "#F59E0B" },
-          { icon: ShieldCheck, text: "Review within 48 hours, no credit card needed", color: "#38BDF8" },
+          {
+            icon: Building2,
+            text: "Supports universities, schools & corporates",
+            color: "#6366F1",
+          },
+          {
+            icon: GraduationCap,
+            text: "Digital ID cards with QR-based access",
+            color: "#10B981",
+          },
+          {
+            icon: Users,
+            text: "Alumni network & memory wall included",
+            color: "#F59E0B",
+          },
+          {
+            icon: ShieldCheck,
+            text: "Review within 48 hours, no credit card needed",
+            color: "#38BDF8",
+          },
         ]}
       />
 
@@ -229,7 +252,7 @@ export default function RegisterPage() {
                         name="institution_type"
                         value={form.institution_type}
                         onChange={handleChange}
-                        style={{ ...inputStyle, appearance: "none" }}
+                        style={inputStyle}
                       >
                         <option value="university">University</option>
                         <option value="school">School</option>

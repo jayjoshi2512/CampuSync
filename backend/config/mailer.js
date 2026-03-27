@@ -57,7 +57,7 @@ if (process.env.NODE_ENV === 'development' && (!process.env.SMTP_HOST || process
 async function sendMail(to, subject, html) {
   try {
     const result = await transporter.sendMail({
-      from: `"${process.env.SMTP_FROM_NAME || 'Phygital SaaS'}" <${process.env.SMTP_FROM_EMAIL || 'noreply@phygital.local'}>`,
+      from: `"${process.env.SMTP_FROM_NAME || 'CampuSync'}" <${process.env.SMTP_FROM_EMAIL || 'noreply@phygital.local'}>`,
       to,
       subject,
       html,

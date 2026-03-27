@@ -10,9 +10,11 @@ router.post('/magic-link', userMagicLink, emailOnly, controller.requestMagicLink
 router.get('/verify-magic-link/:token', controller.verifyMagicLink);
 router.get('/qr-login/:qr_hash', controller.qrLogin);
 router.post('/login', controller.login);
+router.post('/setup-password', controller.setupPassword);
 router.post('/forgot-password', controller.forgotPassword);
 router.post('/reset-password', controller.resetPassword);
 router.post('/change-password', verifyUserJWT, controller.changePassword);
+router.post('/become-alumni', verifyUserJWT, controller.becomeAlumni);
 router.get('/me', verifyUserJWT, controller.getMe);
 
 module.exports = router;

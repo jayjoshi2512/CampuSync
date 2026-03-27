@@ -11,6 +11,7 @@ import {
   Pin,
   X,
   Heart,
+  HeartHandshake,
 } from "lucide-react";
 import api from "@/utils/api";
 import { useAuthStore } from "@/store/authStore";
@@ -71,6 +72,7 @@ const ICON_MAP: Record<string, typeof Camera> = {
   approval: CheckCircle,
   system: Settings,
   reaction: Heart,
+  mentorship: HeartHandshake,
 };
 
 function timeAgo(date: string) {

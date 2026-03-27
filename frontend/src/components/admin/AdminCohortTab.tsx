@@ -71,16 +71,37 @@ export default function AdminCohortTab({
   isDemo,
 }: AdminCohortTabProps) {
   const [showBulkExport, setShowBulkExport] = useState(false);
+  const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'alumni'>('all');
+
+  const filteredByRole = roleFilter === 'all'
+    ? displayedCohort
+    : displayedCohort.filter((s: any) => s.role === roleFilter);
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Role Filter Toggle */}
+      <div className="flex gap-1.5 bg-[var(--color-bg-tertiary)] p-1 rounded-lg w-fit">
+        {([['all', 'All'], ['user', 'Students'], ['alumni', 'Alumni']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setRoleFilter(key as any)}
+            className={`px-3.5 py-1.5 rounded-md text-[12px] font-semibold border-none cursor-pointer transition-colors ${
+              roleFilter === key
+                ? 'bg-[var(--color-brand)] text-white'
+                : 'bg-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className={`flex justify-between gap-3 mb-4 ${isCompactLayout ? "flex-col items-stretch" : "flex-row items-center"}`}>
         <div className={`flex gap-2.5 items-center flex-1 ${isCompactLayout ? "flex-col" : "flex-row"}`}>
           <div className="relative w-full max-w-[360px]">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
             <input
               type="text"
-              placeholder="Search students..."
+              placeholder="Search members..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-tertiary)] text-[13px] text-[var(--color-text-primary)] outline-none"
@@ -224,14 +245,14 @@ export default function AdminCohortTab({
                   Loading cohort...
                 </td>
               </tr>
-            ) : displayedCohort.length === 0 ? (
+            ) : filteredByRole.length === 0 ? (
               <tr>
                 <td colSpan={5} className="p-12 text-center text-[var(--color-text-muted)]">
-                  No students found. Import a CSV or add manually.
+                  No {roleFilter === 'all' ? 'members' : roleFilter === 'user' ? 'students' : 'alumni'} found.
                 </td>
               </tr>
             ) : (
-              displayedCohort.map((s: any) => (
+              filteredByRole.map((s: any) => (
                 <tr
                   key={s.id}
                   className="border-b border-[var(--color-border-subtle)] transition-colors duration-100 hover:bg-[var(--color-bg-tertiary)]"

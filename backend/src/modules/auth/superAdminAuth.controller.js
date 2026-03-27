@@ -37,7 +37,7 @@ async function requestOtp(req, res) {
     }
 
     // Find super admin by email
-    const superAdmin = await SuperAdmin.findOne({ where: { email } });
+    const superAdmin = await SuperAdmin.findOne({ email });
     if (!superAdmin) {
       // Super admin email is set but no row exists — create hint
       return res.status(503).json({
@@ -56,10 +56,9 @@ async function requestOtp(req, res) {
     const otpHash = await bcrypt.hash(otp, 12);
 
     // Store hash in DB
-    await superAdmin.update({
-      current_otp_hash: otpHash,
-      otp_expires_at: new Date(Date.now() + 600000), // 10 minutes
-    });
+    superAdmin.current_otp_hash = otpHash;
+    superAdmin.otp_expires_at = new Date(Date.now() + 600000); // 10 minutes
+    await superAdmin.save();
 
     // Store in Redis with 600s TTL (consumed on first use)
     await redis.set(`super_admin_otp:${email}`, otpHash, 600);
@@ -108,7 +107,7 @@ async function verifyOtp(req, res) {
     }
 
     // Find super admin
-    const superAdmin = await SuperAdmin.findOne({ where: { email } });
+    const superAdmin = await SuperAdmin.findOne({ email });
     if (!superAdmin) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
@@ -133,12 +132,11 @@ async function verifyOtp(req, res) {
     await redis.del(`sa_otp_verify_attempts:${email}`);
 
     // Clear OTP from DB
-    await superAdmin.update({
-      current_otp_hash: null,
-      otp_expires_at: null,
-      last_login_at: new Date(),
-      last_login_ip: req.ip || req.connection?.remoteAddress,
-    });
+    superAdmin.current_otp_hash = null;
+    superAdmin.otp_expires_at = null;
+    superAdmin.last_login_at = new Date();
+    superAdmin.last_login_ip = req.ip || req.connection?.remoteAddress;
+    await superAdmin.save();
 
     // Issue JWT with jti stored in Redis for revocation
     const { token, jti } = signSuperAdminToken(superAdmin.id);

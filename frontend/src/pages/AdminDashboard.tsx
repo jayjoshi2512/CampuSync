@@ -134,11 +134,20 @@ export default function AdminDashboard() {
     if (orgName && !editOrgName) setEditOrgName(orgName);
   }, [orgName]);
 
-  const isAdminGrowth = plan === 'growth' || plan === 'demo';
+  const isAdminGrowth = plan === "growth" || plan === "demo";
 
-  const derivedTabs = isAdminGrowth 
-    ? [...baseTABS, ...growthTABS, ...midTABS] 
-    : [...baseTABS, ...midTABS, { key: "growth-header", label: "Growth Plan Features", isGroupHeader: true }, ...growthTABS];
+  const derivedTabs = isAdminGrowth
+    ? [...baseTABS, ...growthTABS, ...midTABS]
+    : [
+        ...baseTABS,
+        ...midTABS,
+        {
+          key: "growth-header",
+          label: "Growth Plan Features",
+          isGroupHeader: true,
+        },
+        ...growthTABS,
+      ];
 
   // Sync selected template from org on mount
   useEffect(() => {
@@ -148,7 +157,10 @@ export default function AdminDashboard() {
   }, [actor?.organization?.selected_card_template]);
 
   const saveCardTemplate = async (templateKeyOverride?: string) => {
-    const templateToSave = typeof templateKeyOverride === 'string' ? templateKeyOverride : selectedTemplate;
+    const templateToSave =
+      typeof templateKeyOverride === "string"
+        ? templateKeyOverride
+        : selectedTemplate;
     if (isDemo) return toast("Not available in demo", "error");
     setSavingTemplate(true);
     try {
@@ -225,11 +237,14 @@ export default function AdminDashboard() {
 
   const handleSaveSettings = async () => {
     if (isDemo) return toast("Not available in demo", "error");
-    if (!editOrgName.trim()) return toast("Organization name is required", "error");
-    
+    if (!editOrgName.trim())
+      return toast("Organization name is required", "error");
+
     setSavingSettings(true);
     try {
-      const { data } = await api.patch("/admin/settings", { name: editOrgName });
+      const { data } = await api.patch("/admin/settings", {
+        name: editOrgName,
+      });
       const updatedName = data.organization?.name || editOrgName;
       useAuthStore.setState((state) => {
         if (state.actor?.organization) {
@@ -240,7 +255,7 @@ export default function AdminDashboard() {
       // Persist to localStorage AFTER Zustand has updated
       const freshActor = useAuthStore.getState().actor;
       if (freshActor) {
-        localStorage.setItem('phygital_actor', JSON.stringify(freshActor));
+        localStorage.setItem("phygital_actor", JSON.stringify(freshActor));
       }
       toast("Organization name updated!", "success");
     } catch (err: any) {
@@ -249,7 +264,6 @@ export default function AdminDashboard() {
       setSavingSettings(false);
     }
   };
-
 
   useEffect(() => {
     fetchCohort();
@@ -292,7 +306,9 @@ export default function AdminDashboard() {
         await api.patch(`/admin/alumni-requests/${id}/approve`);
       } else {
         let reason: string | undefined;
-        const r = await useModalStore.getState().openPrompt("Reject Request", "Reason for rejection (optional):");
+        const r = await useModalStore
+          .getState()
+          .openPrompt("Reject Request", "Reason for rejection (optional):");
         reason = r || undefined;
         await api.patch(`/admin/alumni-requests/${id}/reject`, { reason });
       }
@@ -312,7 +328,7 @@ export default function AdminDashboard() {
     if (isDemo) return toast("Not available in demo", "error");
     setManualLoading(true);
     try {
-      await api.post("/admin/cohort", manualData);
+      await api.post("/admin/cohort/manual", manualData);
       toast("Student added!", "success");
       setShowManualAdd(false);
       setManualData({
@@ -363,7 +379,12 @@ export default function AdminDashboard() {
 
   const sendAllMagicLinks = async () => {
     if (isDemo) return toast("Demo mode", "error");
-    if (!await useModalStore.getState().openConfirm("Send Magic Links", "Send magic links to all students?")) return;
+    if (
+      !(await useModalStore
+        .getState()
+        .openConfirm("Send Magic Links", "Send magic links to all students?"))
+    )
+      return;
     setSendingBulk(true);
     try {
       const { data } = await api.post("/admin/cohort/send-magic-links");
@@ -399,10 +420,12 @@ export default function AdminDashboard() {
   const handleDeleteStudent = async (student: any) => {
     if (isDemo) return toast("Not available in demo", "error");
     if (
-      !await useModalStore.getState().openConfirm(
-        "Remove Student",
-        `Remove "${student.name}" from the cohort? This can be undone.`
-      )
+      !(await useModalStore
+        .getState()
+        .openConfirm(
+          "Remove Student",
+          `Remove "${student.name}" from the cohort? This can be undone.`,
+        ))
     )
       return;
     try {
@@ -482,11 +505,14 @@ export default function AdminDashboard() {
     : cohort;
 
   const pendingRequests = analyticsData?.pendingAlumniRequests || 0;
-  const tabsWithBadges = derivedTabs.map(t => 
-    t.key === 'alumni-requests' && pendingRequests > 0
-      ? { ...t, badge: pendingRequests }
-      : t
-  );
+  const pendingMentorReqs = analyticsData?.pendingMentorRequests || 0;
+  const tabsWithBadges = derivedTabs.map((t) => {
+    if (t.key === "alumni-requests" && pendingRequests > 0)
+      return { ...t, badge: pendingRequests };
+    if (t.key === "mentors" && pendingMentorReqs > 0)
+      return { ...t, badge: pendingMentorReqs };
+    return t;
+  });
 
   return (
     <SidebarShell
@@ -498,8 +524,8 @@ export default function AdminDashboard() {
           <div className="flex items-start justify-between gap-2 mb-[14px]">
             <div>
               <div className="text-[22px] font-extrabold leading-none tracking-[-0.5px]">
-                <span className="text-[var(--color-brand)]">Nex</span>
-                <span className="text-[var(--color-text-primary)]">Us</span>
+                <span className="text-[var(--color-text-primary)]">Campu</span>
+                <span className="text-[var(--color-brand)]">Sync</span>
               </div>
               <div className="text-[10px] mt-[3px] text-[var(--color-text-muted)] tracking-[1.1px] uppercase font-semibold">
                 Admin Panel
@@ -515,9 +541,7 @@ export default function AdminDashboard() {
           </div>
           <div className="text-[11px] text-[var(--color-text-muted)]">
             {plan.charAt(0).toUpperCase() + plan.slice(1)} Plan
-            {isDemo && (
-              <span className="text-[#F59E0B] ml-[6px]">Demo</span>
-            )}
+            {isDemo && <span className="text-[#F59E0B] ml-[6px]">Demo</span>}
           </div>
         </div>
       }
@@ -604,6 +628,9 @@ export default function AdminDashboard() {
         {/* ═══ JOBS ═══ */}
         {tab === "jobs" && <AdminJobsTab />}
 
+        {/* ═══ MENTORS ═══ */}
+        {tab === "mentors" && <AdminMentorsTab />}
+
         {/* ═══ CARD DESIGN ═══ */}
         {tab === "card-design" && (
           <AdminCardDesignTab
@@ -623,19 +650,26 @@ export default function AdminDashboard() {
 
         {/* ═══ BILLING ═══ */}
         {tab === "billing" && (
-          <PlanSelector currentPlan={plan} isDemo={isDemo} onPlanChange={(newPlan) => {
-            useAuthStore.setState((state) => {
-              if (!state.actor) return state;
-              const updatedActor = {
-                ...state.actor,
-                organization: state.actor.organization
-                  ? { ...state.actor.organization, plan: newPlan }
-                  : state.actor.organization,
-              };
-              localStorage.setItem('phygital_actor', JSON.stringify(updatedActor));
-              return { actor: updatedActor };
-            });
-          }} />
+          <PlanSelector
+            currentPlan={plan}
+            isDemo={isDemo}
+            onPlanChange={(newPlan) => {
+              useAuthStore.setState((state) => {
+                if (!state.actor) return state;
+                const updatedActor = {
+                  ...state.actor,
+                  organization: state.actor.organization
+                    ? { ...state.actor.organization, plan: newPlan }
+                    : state.actor.organization,
+                };
+                localStorage.setItem(
+                  "phygital_actor",
+                  JSON.stringify(updatedActor),
+                );
+                return { actor: updatedActor };
+              });
+            }}
+          />
         )}
 
         {/* ═══ SETTINGS ═══ */}

@@ -55,7 +55,7 @@ async function getMemories(req, res) {
                 reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
                 if (r.user_id?.toString() === req.actor.id?.toString()) viewerReactions.push(r.emoji);
             }
-            return { ...memory, uploader: uploaderMap[memory.uploaded_by?.toString()] || null, reaction_counts: reactionCounts, viewer_reactions: viewerReactions, total_reactions: memReactions.length };
+            return { ...memory, id: memory._id.toString(), uploader: uploaderMap[memory.uploaded_by?.toString()] || null, reaction_counts: reactionCounts, viewer_reactions: viewerReactions, total_reactions: memReactions.length };
         });
 
         res.json({ items: result, nextCursor, hasMore });
@@ -209,7 +209,7 @@ async function getPublicUserMemories(req, res) {
             const memReactions = reactionsByMemory[memory._id.toString()] || [];
             const reactionCounts = {};
             for (const r of memReactions) reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
-            return { ...memory, reaction_counts: reactionCounts, total_reactions: memReactions.length };
+            return { ...memory, id: memory._id.toString(), reaction_counts: reactionCounts, total_reactions: memReactions.length };
         });
 
         res.json({ user: { id: user._id, name: user.name, avatar_url: user.avatar_url, branch: user.branch, batch_year: user.batch_year }, memories: result, nextCursor, hasMore });

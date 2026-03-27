@@ -126,7 +126,8 @@ async function submit(req, res) {
         logger.info(`Registration submitted: ${institution_name} (${contact_email})`);
         res.status(201).json({ message: 'Application submitted successfully! Check your email for confirmation.', organization_id: org._id });
     } catch (err) {
-        logger.error('submit error:', err.message);
+        logger.error(`submit error: ${err.message}`);
+        console.error(err);
         res.status(500).json({ error: 'Registration failed. Please try again.' });
     }
 }

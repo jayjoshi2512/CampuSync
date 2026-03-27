@@ -69,68 +69,40 @@ export default function Login() {
   };
 
   const handleStudentLogin = async () => {
-    if (!email) return;
-    if (password) {
-      setLoading(true);
-      try {
-        const { data } = await api.post("/user/login", { email, password });
-        setAuth(data.token, data.actor);
-        toast("Welcome back!", "success");
-        // Route alumni to alumni portal, students to student portal
-        if (data?.actor?.role === "alumni") {
-          navigate("/alumni");
-        } else {
-          navigate("/portal");
-        }
-      } catch (err: any) {
-        toast(err.response?.data?.error || "Login failed", "error");
-
-      } finally {
-        setLoading(false);
+    if (!email || !password) return;
+    setLoading(true);
+    try {
+      const { data } = await api.post("/user/login", { email, password });
+      if (data?.actor?.role === "alumni") {
+        toast("This is an alumni account. Please use the Alumni tab to sign in.", "error");
+        return;
       }
-    } else {
-      setLoading(true);
-      try {
-        await api.post("/user/magic-link", { email });
-        setMagicSent(true);
-        toast("Magic link sent — check your email!", "success");
-      } catch (err: any) {
-        toast(err.response?.data?.error || "Failed to send", "error");
-      } finally {
-        setLoading(false);
-      }
+      setAuth(data.token, data.actor);
+      toast("Welcome back!", "success");
+      navigate("/portal");
+    } catch (err: any) {
+      toast(err.response?.data?.error || "Login failed", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleAlumniLogin = async () => {
-    if (!email) return;
-    if (password) {
-      setLoading(true);
-      try {
-        const { data } = await api.post("/user/login", { email, password });
-        if (data?.actor?.role !== "alumni") {
-          toast("This account is not alumni. Please try again.", "warning");
-          return;
-        }
-        setAuth(data.token, data.actor);
-        toast("Welcome back, Alumni!", "success");
-        navigate("/alumni");
-      } catch (err: any) {
-        toast(err.response?.data?.error || "Login failed", "error");
-      } finally {
-        setLoading(false);
+    if (!email || !password) return;
+    setLoading(true);
+    try {
+      const { data } = await api.post("/user/login", { email, password });
+      if (data?.actor?.role !== "alumni") {
+        toast("This account is not alumni. Please try again.", "warning");
+        return;
       }
-    } else {
-      setLoading(true);
-      try {
-        await api.post("/user/magic-link", { email });
-        setMagicSent(true);
-        toast("Magic link sent — check your email!", "success");
-      } catch (err: any) {
-        toast(err.response?.data?.error || "Failed to send", "error");
-      } finally {
-        setLoading(false);
-      }
+      setAuth(data.token, data.actor);
+      toast("Welcome back, Alumni!", "success");
+      navigate("/alumni");
+    } catch (err: any) {
+      toast(err.response?.data?.error || "Login failed", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -391,11 +363,7 @@ export default function Login() {
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={
-                        mode === "admin"
-                          ? "Password"
-                          : "Password (optional — blank for magic link)"
-                      }
+                      placeholder="Password"
                       style={{ ...inputStyle, paddingRight: 42 }}
                       onKeyUp={(e) =>
                         e.key === "Enter" &&
@@ -425,63 +393,7 @@ export default function Login() {
                   </div>
                 </div>
 
-                {/* Password Requirements Hint */}
-                {mode !== "admin" && password && (
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-text-muted)",
-                      lineHeight: 1.6,
-                      padding: "0 4px",
-                    }}
-                  >
-                    <p
-                      style={{
-                        marginBottom: 4,
-                        fontWeight: 600,
-                        fontSize: 10,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Password must have:
-                    </p>
-                    {[
-                      {
-                        ok: password.length >= 8,
-                        text: "At least 8 characters",
-                      },
-                      {
-                        ok: /[A-Z]/.test(password),
-                        text: "One uppercase letter",
-                      },
-                      {
-                        ok: /[a-z]/.test(password),
-                        text: "One lowercase letter",
-                      },
-                      { ok: /[0-9]/.test(password), text: "One number" },
-                      {
-                        ok: /[^A-Za-z0-9]/.test(password),
-                        text: "One special character (!@#$...)",
-                      },
-                    ].map((r) => (
-                      <div
-                        key={r.text}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                          color: r.ok
-                            ? "var(--color-accent-green, #22C55E)"
-                            : "var(--color-text-muted)",
-                        }}
-                      >
-                        <span style={{ fontSize: 10 }}>{r.ok ? "✓" : "○"}</span>{" "}
-                        {r.text}
-                      </div>
-                    ))}
-                  </div>
-                )}
+
 
                 {/* Submit */}
                 <button
@@ -492,9 +404,7 @@ export default function Login() {
                         ? handleStudentLogin
                         : handleAlumniLogin
                   }
-                  disabled={
-                    loading || !email || (mode === "admin" && !password)
-                  }
+                  disabled={loading || !email || !password}
                   style={{
                     width: "100%",
                     marginTop: 20,
@@ -506,22 +416,11 @@ export default function Login() {
                     fontSize: 14,
                     fontWeight: 600,
                     cursor: loading ? "wait" : "pointer",
-                    opacity:
-                      loading || !email || (mode === "admin" && !password)
-                        ? 0.5
-                        : 1,
+                    opacity: loading || !email || !password ? 0.5 : 1,
                     transition: "opacity 0.2s",
                   }}
                 >
-                  {loading ? (
-                    <LoadingSpinner size="sm" />
-                  ) : mode === "admin" ? (
-                    "Sign In"
-                  ) : password ? (
-                    "Sign In"
-                  ) : (
-                    "Send Magic Link"
-                  )}
+                  {loading ? <LoadingSpinner size="sm" /> : "Sign In"}
                 </button>
 
                 {/* Forgot password */}

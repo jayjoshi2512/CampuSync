@@ -30,11 +30,10 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ organization_id: 1, email: 1 }, { unique: true });
 
 // Hash password before save
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function () {
   if (this.isModified('password_hash') && this.password_hash && !this.password_hash.startsWith('$2')) {
     this.password_hash = await bcrypt.hash(this.password_hash, 12);
   }
-  next();
 });
 
 userSchema.methods.validatePassword = async function (rawPassword) {

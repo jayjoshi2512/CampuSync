@@ -1,5 +1,5 @@
 // frontend/src/App.tsx
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "@/components/ToastProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -20,6 +20,7 @@ import AlumniPortal from "@/pages/AlumniPortal";
 import UserMemoryProfile from "@/pages/UserMemoryProfile";
 import PublicCard from "@/pages/PublicCard";
 import ResetPassword from "@/pages/ResetPassword";
+import UserSetupPassword from "@/pages/UserSetupPassword";
 import QrLogin from "@/pages/QrLogin";
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/card/:slug" element={<PublicCard />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/setup-password" element={<UserSetupPassword />} />
             <Route path="/qr/:qr_hash" element={<QrLogin />} />
 
             {/* Super Admin */}
@@ -56,7 +58,7 @@ export default function App() {
             </Route>
 
             {/* Admin (keep /admin/login as redirect) */}
-            <Route path="/admin/login" element={<Login />} />
+            <Route path="/admin/login" element={<Navigate to="/login" replace />} />
             <Route
               path="/admin/setup-password"
               element={<AdminSetupPassword />}

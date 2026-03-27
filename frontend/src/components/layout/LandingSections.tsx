@@ -74,7 +74,8 @@ export function LandingNavbar({ isCompactLayout }: { isCompactLayout: boolean })
         zIndex: 100,
         backdropFilter: "blur(20px) saturate(180%)",
         WebkitBackdropFilter: "blur(20px) saturate(180%)",
-        background: "color-mix(in srgb, var(--color-bg-primary) 85%, transparent)",
+        background:
+          "color-mix(in srgb, var(--color-bg-primary) 85%, transparent)",
         borderBottom: "1px solid var(--color-border-subtle)",
         padding: isCompactLayout ? "0 16px" : "0 40px",
         height: 64,
@@ -91,8 +92,8 @@ export function LandingNavbar({ isCompactLayout }: { isCompactLayout: boolean })
           letterSpacing: -0.5,
         }}
       >
-        <span style={{ color: "var(--color-brand)" }}>Nex</span>
-        <span style={{ color: "var(--color-text-primary)" }}>Us</span>
+        <span style={{ color: "var(--color-text-primary)" }}>Campu</span>
+        <span style={{ color: "var(--color-brand)" }}>Sync</span>
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <ThemeToggle />

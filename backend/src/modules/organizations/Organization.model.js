@@ -60,11 +60,10 @@ const organizationSchema = new mongoose.Schema({
 });
 
 // Recompute brand_color_rgb on save
-organizationSchema.pre('save', function (next) {
+organizationSchema.pre('save', async function () {
   if (this.isModified('brand_color') && this.brand_color) {
     this.brand_color_rgb = computeRgb(this.brand_color);
   }
-  next();
 });
 
 const Organization = mongoose.model('Organization', organizationSchema);

@@ -15,8 +15,8 @@ export default function PortalHeader({ isAlumniExperience, actor, isDemo, orgPla
       <div className="flex items-start justify-between gap-2 mb-[14px]">
         <div>
           <div className="text-[22px] font-extrabold leading-none tracking-[-0.5px]">
-            <span className="text-[var(--color-brand)]">Nex</span>
-            <span className="text-[var(--color-text-primary)]">Us</span>
+            <span className="text-[var(--color-text-primary)]">Campu</span>
+            <span className="text-[var(--color-brand)]">Sync</span>
           </div>
           <div className="text-[10px] mt-[3px] text-[var(--color-text-muted)] tracking-[1.1px] uppercase font-semibold">
             {isAlumniExperience ? "Alumni Portal" : "Student Portal"}
@@ -45,7 +45,8 @@ export default function PortalHeader({ isAlumniExperience, actor, isDemo, orgPla
               </span>
             )}
             <span className="text-[9px] font-bold text-[var(--color-text-muted)] uppercase">
-              PLAN: <strong className="text-[var(--color-brand)]">{orgPlan}</strong>
+              PLAN:{" "}
+              <strong className="text-[var(--color-brand)]">{orgPlan}</strong>
             </span>
           </p>
         </div>

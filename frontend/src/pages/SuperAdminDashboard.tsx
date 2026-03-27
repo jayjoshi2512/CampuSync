@@ -98,32 +98,32 @@ export default function SuperAdminDashboard() {
   const stats = [
     {
       label: "Institutions",
-      value: dashboardData?.stats?.totalOrganizations || 0,
+      value: dashboardData?.active_organizations || 0,
       color: "#14B8A6",
     },
     {
       label: "Pending",
-      value: dashboardData?.stats?.pendingRegistrations || 0,
+      value: dashboardData?.pending_registrations || 0,
       color: "#F59E0B",
     },
     {
       label: "Total Users",
-      value: dashboardData?.stats?.totalUsers || 0,
+      value: dashboardData?.total_users || 0,
       color: "#22C55E",
     },
     {
       label: "Total Cards",
-      value: dashboardData?.stats?.totalCards || 0,
+      value: dashboardData?.total_cards || 0,
       color: "#38BDF8",
     },
     {
       label: "Storage",
-      value: dashboardData?.stats?.storageUsed || "0 GB",
+      value: `${dashboardData?.platform_storage_gb || 0} GB`,
       color: "#14B8A6",
     },
     {
       label: "MRR",
-      value: dashboardData?.stats?.mrr || "₹0",
+      value: dashboardData?.mrr_display || "₹0",
       color: "#F87171",
     },
   ];
@@ -173,20 +173,8 @@ export default function SuperAdminDashboard() {
                   letterSpacing: -0.5,
                 }}
               >
-                <span style={{ color: "var(--color-brand)" }}>Nex</span>
-                <span style={{ color: "var(--color-text-primary)" }}>Us</span>
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  marginTop: 3,
-                  color: "var(--color-text-muted)",
-                  letterSpacing: 1.1,
-                  textTransform: "uppercase",
-                  fontWeight: 600,
-                }}
-              >
-                Campus Memory OS
+                <span style={{ color: "var(--color-text-primary)" }}>Campu</span>
+                <span style={{ color: "var(--color-brand)" }}>Sync</span>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

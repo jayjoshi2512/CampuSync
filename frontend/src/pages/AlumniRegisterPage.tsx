@@ -156,18 +156,34 @@ export default function AlumniRegisterPage() {
         title={
           <>
             <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>
-              <span style={{ color: "var(--color-brand)" }}>Nex</span>
-              <span style={{ color: "var(--color-text-primary)" }}>Us</span>
+              <span style={{ color: "var(--color-text-primary)" }}>Campu</span>
+              <span style={{ color: "var(--color-brand)" }}>Sync</span>
             </div>
             <span>Join your alumni network</span>
           </>
         }
         description="Request access to your institution's alumni portal. Once approved by your admin, you'll get access to the memory wall, jobs board, and mentorship network."
         features={[
-          { icon: Users, text: "Connect with batchmates & alumni", color: "#6366F1" },
-          { icon: Image, text: "Access the shared memory wall", color: "#10B981" },
-          { icon: Network, text: "Jobs board & mentorship network", color: "#F59E0B" },
-          { icon: ShieldCheck, text: "Verified by your institution admin", color: "#38BDF8" },
+          {
+            icon: Users,
+            text: "Connect with batchmates & alumni",
+            color: "#6366F1",
+          },
+          {
+            icon: Image,
+            text: "Access the shared memory wall",
+            color: "#10B981",
+          },
+          {
+            icon: Network,
+            text: "Jobs board & mentorship network",
+            color: "#F59E0B",
+          },
+          {
+            icon: ShieldCheck,
+            text: "Verified by your institution admin",
+            color: "#38BDF8",
+          },
         ]}
       />
 
@@ -218,7 +234,7 @@ export default function AlumniRegisterPage() {
                 onChange={(e) =>
                   setForm({ ...form, organization_id: e.target.value })
                 }
-                style={{ ...inputStyle, appearance: "none" }}
+                style={inputStyle}
               >
                 <option value="">Select your institution</option>
                 {orgs.map((o) => (

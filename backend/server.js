@@ -99,6 +99,7 @@ const notificationRoutes = require('./src/modules/notifications/notifications.ro
 const profileRoutes = require('./src/modules/users/profile.routes');
 const billingRoutes = require('./src/modules/billing/billing.routes');
 const featureRoutes = require('./src/modules/features/features.routes');
+const mentorshipRoutes = require('./src/modules/mentorship/mentorship.routes');
 
 // ============================================
 // MOUNT ROUTES
@@ -116,6 +117,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/user/profile', profileRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/features', featureRoutes);
+app.use('/api/mentorship', mentorshipRoutes);
 
 // ============================================
 // HEALTH CHECK

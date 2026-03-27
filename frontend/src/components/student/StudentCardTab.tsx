@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import CardViewer, { TEMPLATES } from "@/components/CardViewer";
 import MiniCardPreview from "@/components/student/MiniCardPreview";
-import { Download, Share2, Check } from "lucide-react";
+import { Download, Share2, Check, Sparkles, X, Loader2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import api from "@/utils/api";
 
 type CardData = {
@@ -44,6 +45,24 @@ export default function StudentCardTab({
   const [designTab, setDesignTab] = useState<'available' | 'premium'>('available');
   const [localTemplateId, setLocalTemplateId] = useState<string | null>(null);
 
+  const [isMentor, setIsMentor] = useState(false);
+  const [mentorRequestPending, setMentorRequestPending] = useState(false);
+  const [showMentorForm, setShowMentorForm] = useState(false);
+  const [submittingMentor, setSubmittingMentor] = useState(false);
+  const [mentorFormData, setMentorFormData] = useState({ role: '', company: '', expertise: '', bio: '' });
+
+  React.useEffect(() => {
+    if (isAlumniExperience) {
+      api.get("/mentorship/my-profile").then(res => {
+        const profile = res.data.profile;
+        if (profile) {
+          if (profile.status === 'approved') setIsMentor(true);
+          else if (profile.status === 'pending') setMentorRequestPending(true);
+        }
+      }).catch(() => {});
+    }
+  }, [isAlumniExperience, actor?.id]);
+
   const activeTemplateId = localTemplateId || selectedTemplateFromOrg || "tmpl_obsidian";
   const activeTmpl = TEMPLATES[activeTemplateId];
   const CARD_BASE_W = 340;
@@ -52,11 +71,31 @@ export default function StudentCardTab({
   const handleAlumniRequest = async () => {
     if (isDemo) return toast("Not available in demo mode", "info");
     try {
-      const { data } = await api.post("/register/alumni/request-upgrade", { reason: "Requested from portal" });
-      toast(data.message || "Request sent to admin!", "success");
+      const { data } = await api.post("/user/become-alumni");
+      toast(data.message || "Successfully became an alumni!", "success");
+      setTimeout(() => window.location.reload(), 1000);
     } catch (err: any) {
       toast(err.response?.data?.error || "Failed to submit request", "error");
     }
+  };
+
+  const handleSubmitMentorRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mentorFormData.role || !mentorFormData.company || !mentorFormData.expertise) return toast('Please fill all required fields', 'error');
+    setSubmittingMentor(true);
+    try {
+      await api.post('/mentorship/apply', {
+        role_title: mentorFormData.role,
+        company: mentorFormData.company,
+        expertise: mentorFormData.expertise,
+        bio: mentorFormData.bio,
+      });
+      toast('Mentor application submitted! The admin will review it.', 'success');
+      setMentorRequestPending(true);
+      setShowMentorForm(false);
+    } catch (err: any) {
+      toast(err.response?.data?.error || 'Failed to submit application', 'error');
+    } finally { setSubmittingMentor(false); }
   };
 
   return (
@@ -190,6 +229,37 @@ export default function StudentCardTab({
           </div>
         )}
 
+        {/* ── Become Mentor Banner (Alumni Only) ── */}
+        {isAlumniExperience && actor?.role === 'alumni' && !isMentor && !mentorRequestPending && (
+          <div className="mb-5 rounded-[16px] overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, var(--color-brand) 0%, #059669 100%)', padding: '1px' }}>
+            <div className="rounded-[15px] p-4 flex flex-col gap-2"
+              style={{ background: 'var(--color-bg-secondary)' }}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-[16px]"
+                  style={{ background: 'linear-gradient(135deg, var(--color-brand) 0%, #059669 100%)' }}>
+                  🤝
+                </div>
+                <div>
+                  <p className="text-[13px] font-bold text-[var(--color-text-primary)] m-0 leading-tight">Become a Mentor</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] m-0">Guide current students</p>
+                </div>
+              </div>
+              <p className="text-[11px] text-[var(--color-text-secondary)] m-0 leading-relaxed">
+                Share your knowledge and mentor students from your institution.
+              </p>
+              <button
+                onClick={() => setShowMentorForm(true)}
+                disabled={mentorRequestPending}
+                className={`mt-1 py-2.5 rounded-[10px] border-none text-[12px] font-bold transition-all w-full ${mentorRequestPending ? 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-muted)] cursor-not-allowed' : 'text-white cursor-pointer hover:opacity-90 hover:scale-[1.02] active:scale-[0.98]'}`}
+                style={mentorRequestPending ? {} : { background: 'linear-gradient(135deg, var(--color-brand) 0%, #059669 100%)', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}
+              >
+                {mentorRequestPending ? 'Request Pending' : 'Join as Mentor'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Section header ── */}
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[12px] font-bold text-[var(--color-text-muted)] uppercase tracking-[1px] m-0">
@@ -301,6 +371,57 @@ export default function StudentCardTab({
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {showMentorForm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 px-4"
+            onClick={() => setShowMentorForm(false)}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-[480px] bg-[var(--color-bg-secondary)] border border-[var(--color-border-subtle)] rounded-2xl p-6 shadow-xl"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="m-0 text-[16px] font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                  <Sparkles size={18} className="text-[var(--color-brand)]" /> Become a Mentor
+                </h3>
+                <button onClick={() => setShowMentorForm(false)} className="p-1 bg-transparent border-none cursor-pointer text-[var(--color-text-muted)]">
+                  <X size={18} />
+                </button>
+              </div>
+              <form onSubmit={handleSubmitMentorRequest} className="flex flex-col gap-3">
+                <div>
+                  <label className="text-[11px] block mb-1 font-medium text-[var(--color-text-secondary)]">Your Current Role *</label>
+                  <input required value={mentorFormData.role} onChange={e => setMentorFormData({ ...mentorFormData, role: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] text-[13px] outline-none"
+                    placeholder="e.g. Senior Software Engineer" />
+                </div>
+                <div>
+                  <label className="text-[11px] block mb-1 font-medium text-[var(--color-text-secondary)]">Company *</label>
+                  <input required value={mentorFormData.company} onChange={e => setMentorFormData({ ...mentorFormData, company: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] text-[13px] outline-none"
+                    placeholder="e.g. Google" />
+                </div>
+                <div>
+                  <label className="text-[11px] block mb-1 font-medium text-[var(--color-text-secondary)]">Areas of Expertise * (comma separated)</label>
+                  <input required value={mentorFormData.expertise} onChange={e => setMentorFormData({ ...mentorFormData, expertise: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] text-[13px] outline-none"
+                    placeholder="React, Cloud Architecture, Interview Prep" />
+                </div>
+                <div>
+                  <label className="text-[11px] block mb-1 font-medium text-[var(--color-text-secondary)]">Short Bio (optional)</label>
+                  <textarea value={mentorFormData.bio} onChange={e => setMentorFormData({ ...mentorFormData, bio: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] text-[13px] outline-none resize-none"
+                    rows={3} placeholder="Tell students why you'd make a great mentor..." />
+                </div>
+                <button type="submit" disabled={submittingMentor}
+                  className="mt-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-[var(--color-brand)] text-white rounded-lg border-none cursor-pointer text-[13px] font-semibold disabled:opacity-50">
+                  {submittingMentor ? <Loader2 size={16} className="animate-spin" /> : 'Submit Request'}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

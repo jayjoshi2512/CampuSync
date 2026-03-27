@@ -181,6 +181,11 @@ export default function UserPortal() {
             setSearchParams(p, { replace: true });
           }
         } catch (err: any) {
+          if (err.response?.status === 403 && err.response?.data?.redirectUrl) {
+            toast("Please configure your password to continue.", "info");
+            navigate(err.response.data.redirectUrl, { replace: true });
+            return;
+          }
           toast(
             err.response?.data?.error || "Invalid or expired link.",
             "error",

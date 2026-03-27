@@ -23,14 +23,13 @@ const cardSchema = new mongoose.Schema({
   toObject: { virtuals: true },
 });
 
-cardSchema.pre('validate', function (next) {
+cardSchema.pre('validate', function () {
   if (!this.share_slug) {
     this.share_slug = crypto.randomBytes(4).toString('hex');
   }
   if (!this.qr_hash) {
     this.qr_hash = crypto.randomBytes(32).toString('hex');
   }
-  next();
 });
 
 const Card = mongoose.model('Card', cardSchema);

@@ -28,6 +28,32 @@ async function getStats(req, res) {
         const totalStorageGb = storageResult[0]?.total || 0;
         const mrrPaise = mrrResult[0]?.total || 0;
 
+        const dateLimit = new Date();
+        dateLimit.setDate(dateLimit.getDate() - 6);
+        dateLimit.setHours(0, 0, 0, 0);
+
+        const trendResult = await Organization.aggregate([
+            { $match: { created_at: { $gte: dateLimit } } },
+            {
+                $group: {
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } },
+                    count: { $sum: 1 },
+                },
+            },
+            { $sort: { _id: 1 } },
+        ]);
+
+        const trendMap = {};
+        for (let i = 0; i < 7; i++) {
+            const d = new Date();
+            d.setDate(d.getDate() - (6 - i));
+            trendMap[d.toISOString().split('T')[0]] = 0;
+        }
+        trendResult.forEach(t => {
+            if (trendMap[t._id] !== undefined) trendMap[t._id] = t.count;
+        });
+        const registrationTrend = Object.keys(trendMap).map(k => ({ day: k.substring(5), count: trendMap[k] }));
+
         res.json({
             active_organizations: activeOrgs,
             pending_registrations: pendingRegistrations,
@@ -38,6 +64,7 @@ async function getStats(req, res) {
             platform_storage_gb: parseFloat(totalStorageGb).toFixed(2),
             mrr_paise: mrrPaise,
             mrr_display: `₹${(mrrPaise / 100).toLocaleString('en-IN')}`,
+            registrationTrend,
         });
     } catch (err) {
         logger.error('getStats error:', err.message);
@@ -53,7 +80,7 @@ async function getRegistrations(req, res) {
 
         const offset = (parseInt(page) - 1) * parseInt(limit);
         const [rows, count] = await Promise.all([
-            OrgRegistration.find(query).sort({ created_at: -1 }).skip(offset).limit(parseInt(limit)).populate('organization_id', 'name status plan').lean(),
+            OrgRegistration.find(query).sort({ created_at: -1 }).skip(offset).limit(parseInt(limit)).populate('organization_id', 'name status plan'),
             OrgRegistration.countDocuments(query),
         ]);
 
@@ -158,7 +185,19 @@ async function getOrganizations(req, res) {
             Organization.countDocuments(query),
         ]);
 
-        res.json({ organizations: rows, total: count, page: parseInt(page), total_pages: Math.ceil(count / parseInt(limit)) });
+        const enrichedOrgs = await Promise.all(rows.map(async (org) => {
+            const user_count = await User.countDocuments({ organization_id: org._id, is_active: true });
+            const card_count = await Card.countDocuments({ organization_id: org._id, is_active: true });
+            return {
+                ...org,
+                id: org._id,
+                user_count,
+                card_count,
+                admin_email: org.contact_email,
+            };
+        }));
+
+        res.json({ organizations: enrichedOrgs, total: count, page: parseInt(page), total_pages: Math.ceil(count / parseInt(limit)) });
     } catch (err) {
         logger.error('getOrganizations error:', err.message);
         res.status(500).json({ error: 'Failed to load organizations.' });
@@ -200,7 +239,7 @@ async function getAuditLogs(req, res) {
 
         const offset = (parseInt(page) - 1) * parseInt(limit);
         const [rows, count] = await Promise.all([
-            AuditLog.find(query).sort({ created_at: -1 }).skip(offset).limit(parseInt(limit)).lean(),
+            AuditLog.find(query).sort({ created_at: -1 }).skip(offset).limit(parseInt(limit)),
             AuditLog.countDocuments(query),
         ]);
 
@@ -230,11 +269,28 @@ async function getTrash(req, res) {
 
         const offset = (parseInt(page) - 1) * parseInt(limit);
         const [rows, count] = await Promise.all([
-            Model.find({ is_active: false }).sort({ updated_at: -1 }).skip(offset).limit(parseInt(limit)).lean(),
+            Model.find({ is_active: false }).sort({ updated_at: -1 }).skip(offset).limit(parseInt(limit)),
             Model.countDocuments({ is_active: false }),
         ]);
 
-        res.json({ items: rows, total: count, table, page: parseInt(page) });
+        const mappedRows = rows.map(r => {
+            const doc = r.toObject ? r.toObject() : r;
+            let name = `ID: ${doc._id}`;
+            if (doc.name) name = doc.name;
+            else if (doc.user_name) name = doc.user_name;
+            else if (doc.title) name = doc.title;
+            else if (doc.caption) name = doc.caption;
+
+            return {
+                ...doc,
+                id: doc._id,
+                type: table.slice(0, -1),
+                name,
+                deleted_at: doc.updated_at
+            };
+        });
+
+        res.json({ items: mappedRows, total: count, table, page: parseInt(page) });
     } catch (err) {
         logger.error('getTrash error:', err.message);
         res.status(500).json({ error: 'Failed to load trash.' });
@@ -291,7 +347,7 @@ async function purgeTrash(req, res) {
 
 async function getStorage(req, res) {
     try {
-        const orgs = await Organization.find().select('name storage_used_gb storage_limit_gb plan').sort({ storage_used_gb: -1 }).lean();
+        const orgs = await Organization.find().select('name storage_used_gb storage_limit_gb plan').sort({ storage_used_gb: -1 });
 
         let cloudinaryUsage = null;
         try { cloudinaryUsage = await getUsageReport(); } catch (e) { logger.warn('Could not fetch Cloudinary usage:', e.message); }

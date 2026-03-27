@@ -14,12 +14,16 @@ interface DirectoryUser {
   linkedin_url?: string;
   github_url?: string;
   twitter_url?: string;
-  instagram_url?: string;
   website_url?: string;
   bio?: string;
 }
 
-export default function Directory() {
+interface DirectoryProps {
+  filterRole?: string;
+}
+
+export default function Directory({ filterRole }: DirectoryProps) {
+
   const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -49,7 +53,9 @@ export default function Directory() {
       ? (u.branch || "").toLowerCase().includes(branchFilter.toLowerCase())
       : true;
 
-    return searchMatch && branchMatch;
+    const roleMatch = filterRole ? u.role === filterRole : true;
+
+    return searchMatch && branchMatch && roleMatch;
   });
 
   const [sortConfig, setSortConfig] = useState<{
@@ -111,8 +117,8 @@ export default function Directory() {
             className="w-full py-2.5 px-3.5 rounded-xl bg-[var(--color-bg-tertiary)] border border-[var(--color-border-default)] text-[var(--color-text-primary)] outline-none text-[13px] box-border"
           />
           <datalist id="directory-branch-options">
-            {branchOptions.map((branch) => (
-              <option key={branch} value={branch} />
+            {branchOptions.map((branch, idx) => (
+              <option key={branch || `empty-${idx}`} value={branch} />
             ))}
           </datalist>
         </div>
@@ -161,9 +167,9 @@ export default function Directory() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((u) => (
+              {sorted.map((u, i) => (
                 <tr
-                  key={u.id}
+                  key={u.id || (u as any)._id || i}
                   className="border-b border-[var(--color-border-subtle)] transition-colors duration-100 hover:bg-[var(--color-bg-tertiary)]"
                 >
                   <td className="py-[10px] px-[16px]">

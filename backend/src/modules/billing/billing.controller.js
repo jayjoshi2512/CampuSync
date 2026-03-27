@@ -206,4 +206,36 @@ async function getInvoices(req, res) {
     }
 }
 
-module.exports = { createSubscription, handleWebhook, getInvoices, demoUpgrade };
+async function recordPayment(req, res) {
+    try {
+        const { plan_key, amount_paise, payment_id } = req.body;
+        if (!plan_key || !amount_paise) return res.status(400).json({ error: 'plan_key and amount_paise required.' });
+
+        const org = await Organization.findById(req.actor.org);
+        if (!org) return res.status(404).json({ error: 'Org not found.' });
+
+        const limits = getPlanLimits(plan_key);
+        org.plan = plan_key;
+        org.card_quota = limits.card_quota;
+        org.storage_limit_gb = limits.storage_limit_gb;
+        await org.save();
+
+        const paymentRecord = await Payment.create({
+            organization_id: org._id,
+            razorpay_payment_id: payment_id || `manual_${Date.now()}`,
+            amount_paise,
+            currency: 'INR',
+            status: 'captured',
+            plan: plan_key,
+            payment_method: 'manual',
+        });
+
+        auditLog.log('admin', req.actor.id, 'PAYMENT_MANUAL', 'organization', org._id, { plan: plan_key, amount: amount_paise }, req);
+        res.json({ message: 'Payment recorded and plan upgraded.', payment: paymentRecord, plan: plan_key });
+    } catch (err) {
+        logger.error('recordPayment error:', err.message);
+        res.status(500).json({ error: 'Failed to record payment.' });
+    }
+}
+
+module.exports = { createSubscription, handleWebhook, getInvoices, demoUpgrade, recordPayment };

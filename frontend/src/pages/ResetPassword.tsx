@@ -57,7 +57,8 @@ export default function ResetPassword() {
     try {
       await api.post("/user/reset-password", { token, password });
       setSuccess(true);
-      toast("Password updated!", "success");
+      toast("Password updated! Redirecting to login...", "success");
+      setTimeout(() => navigate("/login"), 1500);
     } catch (err: any) {
       toast(err.response?.data?.error || "Reset failed", "error");
     } finally {
@@ -165,23 +166,17 @@ export default function ResetPassword() {
                 marginBottom: 20,
               }}
             >
-              Your password has been updated. You can now log in.
+              Your password has been updated.
             </p>
-            <button
-              onClick={() => navigate("/login")}
+            <p
               style={{
-                padding: "12px 24px",
-                borderRadius: 10,
-                border: "none",
-                background: "var(--color-brand)",
-                color: "#fff",
-                cursor: "pointer",
-                fontSize: 14,
-                fontWeight: 600,
+                fontSize: 13,
+                color: "var(--color-brand)",
+                fontWeight: 500,
               }}
             >
-              Go to Login
-            </button>
+              Redirecting to login...
+            </p>
           </div>
         ) : (
           <>

@@ -59,7 +59,8 @@ export default function AdminSetupPassword() {
         confirm_password: confirm,
       });
       setDone(true);
-      toast("Password set! You can now log in.", "success");
+      toast("Password set! Redirecting to login...", "success");
+      setTimeout(() => navigate("/login"), 1500);
     } catch (err: any) {
       if (err.response?.data?.details && err.response.data.details.length > 0) {
         toast(err.response.data.details[0].message, "error");

@@ -2,7 +2,7 @@
 const { parse } = require('csv-parse/sync');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
-const { User, Card, Memory, MemoryReaction, Organization, Admin, Notification, CardScanEvent, AlumniRequest } = require('../models');
+const { User, Card, Memory, MemoryReaction, Organization, Admin, Notification, CardScanEvent, AlumniRequest, MentorProfile } = require('../models');
 const { createUserNotification } = require('../notifications/notifications.controller');
 const { uploadStream, deleteAsset } = require('../../../utils/cloudinaryHelpers');
 const { signMagicLinkToken } = require('../../../utils/jwtFactory');
@@ -37,10 +37,10 @@ async function getCohort(req, res) {
         // Attach card info
         const userIds = rows.map(u => u._id);
         const cards = await Card.find({ user_id: { $in: userIds }, is_active: true })
-            .select('user_id qr_hash share_slug scan_count template_id').lean();
+            .select('user_id qr_hash share_slug scan_count template_id');
         const cardMap = {};
         for (const c of cards) cardMap[c.user_id.toString()] = c;
-        const users = rows.map(u => ({ ...u, Card: cardMap[u._id.toString()] || null }));
+        const users = rows.map(u => ({ ...u, id: u._id.toString(), Card: cardMap[u._id.toString()] || null }));
 
         res.json({ users, total: count, page: parseInt(page), total_pages: Math.ceil(count / parseInt(limit)) });
     } catch (err) {
@@ -100,8 +100,6 @@ async function importCsv(req, res) {
 
         let imported = 0;
         for (const userData of validUsers) {
-            const session = await mongoose.startSession();
-            session.startTransaction();
             try {
                 const user = new User({
                     organization_id: org._id,
@@ -111,20 +109,16 @@ async function importCsv(req, res) {
                     branch: userData.branch || null,
                     batch_year: userData.batch_year,
                 });
-                await user.save({ session });
+                await user.save();
                 await Card.create([{
                     user_id: user._id,
                     template_id: org.selected_card_template || 'tmpl_midnight',
                     front_data_json: { name: user.name, roll: user.roll_number, branch: user.branch, batch: user.batch_year, org_name: org.name, org_logo: org.logo_url },
-                }], { session });
-                await session.commitTransaction();
+                }]);
                 imported++;
             } catch (createErr) {
-                await session.abortTransaction();
                 const msg = createErr.message;
                 errors.push({ row: 0, email: userData.email, reason: msg });
-            } finally {
-                session.endSession();
             }
         }
 
@@ -140,8 +134,6 @@ async function importCsv(req, res) {
  * POST /api/admin/cohort/manual
  */
 async function addStudent(req, res) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
         const { email, name, roll_number, branch, batch_year, role } = req.body;
         const orgId = req.actor.org;
@@ -150,7 +142,6 @@ async function addStudent(req, res) {
         const existing = await User.findOne({ email, organization_id: orgId }).setOptions({ strict: false });
         if (existing) {
             if (existing.is_active) {
-                await session.abortTransaction();
                 return res.status(400).json({ error: 'Email already exists in this organization.' });
             }
             existing.is_active = true;
@@ -159,36 +150,31 @@ async function addStudent(req, res) {
             existing.branch = branch || existing.branch;
             existing.batch_year = batch_year || existing.batch_year;
             if (role && ['user', 'alumni'].includes(role)) existing.role = role;
-            await existing.save({ session });
+            await existing.save();
 
             let card = await Card.findOne({ user_id: existing._id }).setOptions({ strict: false });
             if (card) {
                 card.is_active = true;
-                await card.save({ session });
+                await card.save();
             } else {
                 const org = await Organization.findById(orgId);
-                await Card.create([{ user_id: existing._id, template_id: org?.selected_card_template || 'tmpl_midnight', front_data_json: { name: existing.name, roll: existing.roll_number, branch: existing.branch, org_name: org?.name } }], { session });
+                await Card.create([{ user_id: existing._id, template_id: org?.selected_card_template || 'tmpl_midnight', front_data_json: { name: existing.name, roll: existing.roll_number, branch: existing.branch, org_name: org?.name } }]);
             }
-            await session.commitTransaction();
             return res.json({ message: 'Student reactivated successfully.', user: existing });
         }
 
         const user = new User({ organization_id: orgId, email, name, roll_number, branch, batch_year, role: role && ['user', 'alumni'].includes(role) ? role : 'user' });
-        await user.save({ session });
+        await user.save();
         const org = await Organization.findById(orgId);
         await Card.create([{
             user_id: user._id,
             template_id: org?.selected_card_template || 'tmpl_midnight',
             front_data_json: { name: user.name, roll: user.roll_number, branch: user.branch, batch: user.batch_year, org_name: org?.name, org_logo: org?.logo_url },
-        }], { session });
-        await session.commitTransaction();
+        }]);
         res.status(201).json({ message: 'Student added successfully.', user });
     } catch (err) {
-        await session.abortTransaction();
         logger.error('addStudent error:', err.message);
         res.status(500).json({ error: 'Failed to add student.' });
-    } finally {
-        session.endSession();
     }
 }
 
@@ -249,7 +235,7 @@ async function sendMagicLinks(req, res) {
         for (const user of users) {
             const magicToken = signMagicLinkToken(user._id, org._id);
             await redis.set(`magic_link:${magicToken}`, user._id.toString(), 86400);
-            const link = `${appBaseUrl}/portal?magic=${magicToken}`;
+            const link = `${appBaseUrl}/setup-password?token=${magicToken}`;
             sendMail(user.email, `Welcome to ${org.name} — Access Your Card`, cohortMagicLinkEmail(user.name, org.name, link))
                 .catch(e => logger.error(`Failed to send magic link to ${user.email}:`, e.message));
             queued++;
@@ -276,7 +262,7 @@ async function sendIndividualMagicLink(req, res) {
         const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
         const magicToken = signMagicLinkToken(user._id, org._id);
         await redis.set(`magic_link:${magicToken}`, user._id.toString(), 86400);
-        const link = `${appBaseUrl}/portal?magic=${magicToken}`;
+        const link = `${appBaseUrl}/setup-password?token=${magicToken}`;
         sendMail(user.email, `Your Magic Link — ${org.name}`, cohortMagicLinkEmail(user.name, org.name, link))
             .catch(e => logger.error('Failed to send individual magic link:', e.message));
 
@@ -348,13 +334,15 @@ async function getAnalytics(req, res) {
         const userDocs = await User.find({ organization_id: orgId, is_active: true }).select('_id last_login_at').lean();
         const userIds = userDocs.map(u => u._id);
 
-        const [memoryCount, totalUsers, activeUsers, org, pendingAlumniRequests] = await Promise.all([
+        const [memoryCount, totalUsers, activeUsers, orgDoc, pendingAlumniRequests] = await Promise.all([
             Memory.countDocuments({ organization_id: orgId, is_active: true }),
             User.countDocuments({ organization_id: orgId, is_active: true }),
             User.countDocuments({ organization_id: orgId, is_active: true, last_login_at: { $gte: thirtyDaysAgo } }),
-            Organization.findById(orgId).select('storage_used_gb storage_limit_gb').lean(),
+            Organization.findById(orgId).select('storage_used_gb storage_limit_gb features_data').lean(),
             AlumniRequest.countDocuments({ organization_id: orgId, status: 'pending', is_active: true }),
         ]);
+        const org = orgDoc;
+        const pendingMentorRequests = await MentorProfile.countDocuments({ organization_id: orgId, status: 'pending' });
 
         const cardCount = userIds.length > 0 ? await Card.countDocuments({ user_id: { $in: userIds }, is_active: true }) : 0;
         const scanAgg = userIds.length > 0 ? await Card.aggregate([
@@ -390,6 +378,7 @@ async function getAnalytics(req, res) {
             reaction_count: reactionCount,
             upload_trend: uploadTrend,
             pendingAlumniRequests,
+            pendingMentorRequests,
         });
     } catch (err) {
         logger.error('getAnalytics error:', err.message);
@@ -448,7 +437,7 @@ async function getMemories(req, res) {
                 reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
                 if (r.user_id?.toString() === req.actor.id?.toString()) viewerReactions.push(r.emoji);
             }
-            return { ...memory, uploader: uploaderMap[memory.uploaded_by?.toString()] || null, reaction_counts: reactionCounts, viewer_reactions: viewerReactions, total_reactions: memReactions.length };
+            return { ...memory, id: memory._id.toString(), uploader: uploaderMap[memory.uploaded_by?.toString()] || null, reaction_counts: reactionCounts, viewer_reactions: viewerReactions, total_reactions: memReactions.length };
         });
 
         res.json({ items: result, nextCursor, hasMore });
@@ -601,31 +590,28 @@ async function getAlumniRequests(req, res) {
  * PATCH /api/admin/alumni-requests/:id/approve
  */
 async function approveAlumniRequest(req, res) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
         const requestRow = await AlumniRequest.findOne({
             _id: req.params.id, organization_id: req.actor.org, status: 'pending',
-        }).session(session);
+        });
         if (!requestRow) {
-            await session.abortTransaction();
             return res.status(404).json({ error: 'Alumni request not found.' });
         }
 
         let user = null;
         if (requestRow.user_id) {
-            user = await User.findOne({ _id: requestRow.user_id, organization_id: req.actor.org }).session(session);
+            user = await User.findOne({ _id: requestRow.user_id, organization_id: req.actor.org });
         }
         if (!user) {
-            user = await User.findOne({ organization_id: req.actor.org, email: requestRow.email }).session(session);
+            user = await User.findOne({ organization_id: req.actor.org, email: requestRow.email });
         }
         if (!user) {
             user = new User({ organization_id: req.actor.org, name: requestRow.name, email: requestRow.email, branch: requestRow.branch, batch_year: requestRow.batch_year, role: 'alumni' });
-            await user.save({ session });
+            await user.save();
         } else {
             user.role = 'alumni';
             user.is_active = true;
-            await user.save({ session });
+            await user.save();
         }
 
         requestRow.status = 'approved';
@@ -633,18 +619,14 @@ async function approveAlumniRequest(req, res) {
         requestRow.reviewed_at = new Date();
         requestRow.user_id = user._id;
         requestRow.rejection_reason = null;
-        await requestRow.save({ session });
-        await session.commitTransaction();
+        await requestRow.save();
 
         createUserNotification(user._id, { type: 'approval', title: 'Alumni request approved', body: 'Your alumni access is now active.', action_url: '/alumni' }).catch(() => {});
         auditLog.log('admin', req.actor.id, 'ALUMNI_REQUEST_APPROVED', 'alumni_request', requestRow._id, { user_id: user._id }, req);
         res.json({ message: 'Alumni request approved.', user_id: user._id });
     } catch (err) {
-        await session.abortTransaction();
         logger.error('approveAlumniRequest error:', err.message);
         res.status(500).json({ error: 'Failed to approve alumni request.' });
-    } finally {
-        session.endSession();
     }
 }
 
