@@ -29,22 +29,41 @@ if (process.env.NODE_ENV === 'development' && (!process.env.SMTP_HOST || process
   };
   logger.info('Mailer: Using console logger (no real SMTP in development)');
 } else {
+  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+  const smtpSecure = process.env.SMTP_SECURE === 'true';
+  const isBrevoHost = /brevo|sendinblue/i.test(smtpHost);
+  const brevoKey = process.env.BREVO_SMTP_KEY || process.env.SMTP_PASS;
+
+  if (isBrevoHost) {
+    logger.info(`Mailer: Using Brevo SMTP at ${smtpHost}:${smtpPort}`);
+  } else {
+    logger.info(`Mailer: Using SMTP at ${smtpHost}:${smtpPort}`);
+  }
+
   transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '465', 10),
-    secure: process.env.SMTP_SECURE === 'true',
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
     auth: {
       user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      pass: isBrevoHost ? brevoKey : process.env.SMTP_PASS,
     },
+    connectionTimeout: parseInt(process.env.SMTP_CONNECTION_TIMEOUT_MS || '15000', 10),
+    greetingTimeout: parseInt(process.env.SMTP_GREETING_TIMEOUT_MS || '10000', 10),
+    socketTimeout: parseInt(process.env.SMTP_SOCKET_TIMEOUT_MS || '20000', 10),
     tls: {
-      rejectUnauthorized: false,
+      rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED === 'true',
     },
   });
 
   transporter.verify()
-    .then(() => logger.info('Mailer: SMTP connection verified ✅'))
-    .catch((err) => logger.error('Mailer: SMTP verification failed:', err.message));
+    .then(() => logger.info('Mailer: SMTP connection verified'))
+    .catch((err) => {
+      const msg = err?.message || String(err);
+      const code = err?.code || 'UNKNOWN';
+      logger.error(`Mailer: SMTP verification failed - ${msg} (code: ${code})`);
+    });
 }
 
 /**
@@ -56,8 +75,11 @@ if (process.env.NODE_ENV === 'development' && (!process.env.SMTP_HOST || process
  */
 async function sendMail(to, subject, html) {
   try {
+    const rawFromEmail = (process.env.SMTP_FROM_EMAIL || '').trim().replace(/^"|"$/g, '');
+    const fromEmail = rawFromEmail.includes('@') ? rawFromEmail : (process.env.SMTP_USER || 'noreply@phygital.local');
+
     const result = await transporter.sendMail({
-      from: `"${process.env.SMTP_FROM_NAME || 'CampuSync'}" <${process.env.SMTP_FROM_EMAIL || 'noreply@phygital.local'}>`,
+      from: `"${process.env.SMTP_FROM_NAME || 'CampuSync'}" <${fromEmail}>`,
       to,
       subject,
       html,
@@ -65,9 +87,13 @@ async function sendMail(to, subject, html) {
     logger.info(`Email sent to ${to}: ${subject} [${result.messageId}]`);
     return result;
   } catch (err) {
-    logger.error(`Failed to send email to ${to}:`, err.message);
+    const msg = err?.message || String(err);
+    const code = err?.code || 'UNKNOWN';
+    logger.error(`Failed to send email to ${to}: ${msg} (code: ${code})`);
     throw err;
   }
 }
 
 module.exports = { sendMail, transporter };
+
+
