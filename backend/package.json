@@ -1,5 +1,5 @@
 {
-  "name": "phygital-saas-backend",
+  "name": "campusync-backend",
   "version": "1.0.0",
   "description": "Phygital Memory & Alumni Engagement SaaS — Backend API",
   "main": "server.js",
