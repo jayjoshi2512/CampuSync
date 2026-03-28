@@ -78,11 +78,7 @@ async function requestOtp (req, res) {
             masked_email: maskEmail(email),
         });
     } catch(err) {
-        const msg = err?.message || String(err);
-        logger.error('SA requestOtp error:', msg);
-        if(/mail|smtp|resend|email/i.test(msg)) {
-            return res.status(502).json({ error: 'Failed to deliver access code email. Please try again shortly.' });
-        }
+        logger.error('SA requestOtp error:', err.message);
         res.status(500).json({ error: 'Failed to process request.' });
     }
 }
