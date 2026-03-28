@@ -64,6 +64,63 @@ async function sendViaBrevoApi (to, subject, html) {
     return { messageId: payload.messageId || `brevo-${ Date.now() }` };
 }
 
+async function sendViaSendGridApi (to, subject, html) {
+    const apiKey = process.env.SENDGRID_API_KEY || process.env.SMTP_PASS;
+    if(!apiKey) {
+        const err = new Error('SENDGRID_API_KEY is required when MAIL_PROVIDER=sendgrid_api');
+        err.code = 'SENDGRID_API_KEY_MISSING';
+        throw err;
+    }
+
+    const fromEmail = sanitizeFromEmail();
+    const fromName = process.env.SMTP_FROM_NAME || 'CampuSync';
+
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${ apiKey }`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            personalizations: [
+                {
+                    to: [ { email: to } ],
+                    subject,
+                },
+            ],
+            from: {
+                email: fromEmail,
+                name: fromName,
+            },
+            content: [
+                {
+                    type: 'text/html',
+                    value: html,
+                },
+            ],
+        }),
+    });
+
+    const text = await response.text();
+    let payload = null;
+    if(text) {
+        try {
+            payload = JSON.parse(text);
+        } catch {
+            payload = { raw: text };
+        }
+    }
+
+    if(!response.ok) {
+        const err = new Error(`SendGrid API failed with status ${ response.status }`);
+        err.code = `HTTP_${ response.status }`;
+        err.response = payload;
+        throw err;
+    }
+
+    return { messageId: response.headers.get('x-message-id') || `sendgrid-${ Date.now() }` };
+}
+
 function initSmtpTransport () {
     if(process.env.NODE_ENV === 'development' && (!process.env.SMTP_HOST || process.env.SMTP_HOST === 'localhost')) {
         logger.info('Mailer: Development console mode enabled');
@@ -111,12 +168,21 @@ function initSmtpTransport () {
         });
 }
 
-if(mailProvider !== 'brevo_api') {
+if(mailProvider !== 'brevo_api' && mailProvider !== 'sendgrid_api') {
     initSmtpTransport();
 } else {
-    logger.info('Mailer: Using Brevo HTTP API transport');
-    if(!(process.env.BREVO_API_KEY || process.env.BREVO_APIKEY)) {
-        logger.error('Mailer: BREVO_API_KEY is missing while MAIL_PROVIDER=brevo_api');
+    if(mailProvider === 'brevo_api') {
+        logger.info('Mailer: Using Brevo HTTP API transport');
+        if(!(process.env.BREVO_API_KEY || process.env.BREVO_APIKEY)) {
+            logger.error('Mailer: BREVO_API_KEY is missing while MAIL_PROVIDER=brevo_api');
+        }
+    }
+
+    if(mailProvider === 'sendgrid_api') {
+        logger.info('Mailer: Using SendGrid HTTP API transport');
+        if(!(process.env.SENDGRID_API_KEY || process.env.SMTP_PASS)) {
+            logger.error('Mailer: SENDGRID_API_KEY is missing while MAIL_PROVIDER=sendgrid_api');
+        }
     }
 }
 
@@ -125,6 +191,12 @@ async function sendMail (to, subject, html) {
         if(mailProvider === 'brevo_api') {
             const result = await sendViaBrevoApi(to, subject, html);
             logger.info(`Email sent via brevo_api to ${ to }: ${ subject } [${ result.messageId }]`);
+            return result;
+        }
+
+        if(mailProvider === 'sendgrid_api') {
+            const result = await sendViaSendGridApi(to, subject, html);
+            logger.info(`Email sent via sendgrid_api to ${ to }: ${ subject } [${ result.messageId }]`);
             return result;
         }
 
