@@ -2,98 +2,140 @@
 const nodemailer = require('nodemailer');
 const { logger } = require('./database');
 
-let transporter;
+const mailProvider = (process.env.MAIL_PROVIDER || 'smtp').toLowerCase();
+let smtpTransporter = null;
 
-if(process.env.NODE_ENV === 'development' && (!process.env.SMTP_HOST || process.env.SMTP_HOST === 'localhost')) {
-    // In dev mode without a real SMTP server, log emails to console
-    transporter = {
-        async sendMail (mailOptions) {
-            logger.info('═══════════════════════════════════════');
-            logger.info('📧 EMAIL (dev console — not actually sent)');
-            logger.info(`   To:      ${ mailOptions.to }`);
-            logger.info(`   Subject: ${ mailOptions.subject }`);
-            logger.info(`   From:    ${ mailOptions.from || process.env.SMTP_FROM_EMAIL }`);
-            if(mailOptions.html) {
-                // Extract text content from HTML for console readability
-                const textContent = mailOptions.html
-                    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-                    .replace(/<[^>]+>/g, ' ')
-                    .replace(/\s{2,}/g, ' ')
-                    .trim()
-                    .substring(0, 500);
-                logger.info(`   Body:    ${ textContent }...`);
-            }
-            logger.info('═══════════════════════════════════════');
-            return { messageId: `dev-${ Date.now() }@local` };
-        },
+function normalizeError(err) {
+  if (!err) return { message: 'Unknown error', code: 'UNKNOWN' };
+  return {
+    message: err.message || String(err),
+    code: err.code || 'UNKNOWN',
+  };
+}
+
+function sanitizeFromEmail() {
+  const rawFromEmail = (process.env.SMTP_FROM_EMAIL || '').trim().replace(/^"|"$/g, '');
+  if (rawFromEmail.includes('@')) return rawFromEmail;
+  return process.env.SMTP_USER || 'noreply@phygital.local';
+}
+
+async function sendViaBrevoApi(to, subject, html) {
+  const apiKey = process.env.BREVO_API_KEY || process.env.BREVO_APIKEY;
+  if (!apiKey) {
+    throw new Error('BREVO_API_KEY is required when MAIL_PROVIDER=brevo_api');
+  }
+
+  const fromEmail = sanitizeFromEmail();
+  const fromName = process.env.SMTP_FROM_NAME || 'CampuSync';
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: fromName, email: fromEmail },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+
+  const text = await response.text();
+  let payload;
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = { raw: text };
+  }
+
+  if (!response.ok) {
+    const err = new Error(`Brevo API failed with status ${response.status}`);
+    err.code = `HTTP_${response.status}`;
+    err.response = payload;
+    throw err;
+  }
+
+  return { messageId: payload.messageId || `brevo-${Date.now()}` };
+}
+
+function initSmtpTransport() {
+  if (process.env.NODE_ENV === 'development' && (!process.env.SMTP_HOST || process.env.SMTP_HOST === 'localhost')) {
+    logger.info('Mailer: Development console mode enabled');
+    smtpTransporter = {
+      async sendMail(mailOptions) {
+        logger.info('EMAIL (dev, not sent)');
+        logger.info(`To: ${mailOptions.to}`);
+        logger.info(`Subject: ${mailOptions.subject}`);
+        return { messageId: `dev-${Date.now()}@local` };
+      },
     };
-    logger.info('Mailer: Using console logger (no real SMTP in development)');
-} else {
-    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
-    const smtpSecure = process.env.SMTP_SECURE === 'true';
-    const isBrevoHost = /brevo|sendinblue/i.test(smtpHost);
-    const brevoKey = process.env.BREVO_SMTP_KEY || process.env.SMTP_PASS;
+    return;
+  }
 
-    if(isBrevoHost) {
-        logger.info(`Mailer: Using Brevo SMTP at ${ smtpHost }:${ smtpPort }`);
-    } else {
-        logger.info(`Mailer: Using SMTP at ${ smtpHost }:${ smtpPort }`);
-    }
+  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+  const smtpSecure = process.env.SMTP_SECURE === 'true';
+  const isBrevoHost = /brevo|sendinblue/i.test(smtpHost);
+  const smtpPass = isBrevoHost
+    ? (process.env.BREVO_SMTP_KEY || process.env.SMTP_PASS)
+    : process.env.SMTP_PASS;
 
-    transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure,
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: isBrevoHost ? brevoKey : process.env.SMTP_PASS,
-        },
-        connectionTimeout: parseInt(process.env.SMTP_CONNECTION_TIMEOUT_MS || '15000', 10),
-        greetingTimeout: parseInt(process.env.SMTP_GREETING_TIMEOUT_MS || '10000', 10),
-        socketTimeout: parseInt(process.env.SMTP_SOCKET_TIMEOUT_MS || '20000', 10),
-        tls: {
-            rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED === 'true',
-        },
+  smtpTransporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: smtpPass,
+    },
+    connectionTimeout: parseInt(process.env.SMTP_CONNECTION_TIMEOUT_MS || '15000', 10),
+    greetingTimeout: parseInt(process.env.SMTP_GREETING_TIMEOUT_MS || '10000', 10),
+    socketTimeout: parseInt(process.env.SMTP_SOCKET_TIMEOUT_MS || '20000', 10),
+    tls: {
+      rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED === 'true',
+    },
+  });
+
+  logger.info(`Mailer: Using SMTP at ${smtpHost}:${smtpPort}`);
+  smtpTransporter.verify()
+    .then(() => logger.info('Mailer: SMTP connection verified'))
+    .catch((err) => {
+      const n = normalizeError(err);
+      logger.error(`Mailer: SMTP verification failed - ${n.message} (code: ${n.code})`);
     });
-
-    transporter.verify()
-        .then(() => logger.info('Mailer: SMTP connection verified'))
-        .catch((err) => {
-            const msg = err?.message || String(err);
-            const code = err?.code || 'UNKNOWN';
-            logger.error(`Mailer: SMTP verification failed - ${ msg } (code: ${ code })`);
-        });
 }
 
-/**
- * Send an email
- * @param {string} to - Recipient email
- * @param {string} subject - Email subject
- * @param {string} html - Email HTML body
- * @returns {Promise<object>} Nodemailer send result
- */
-async function sendMail (to, subject, html) {
-    try {
-        const rawFromEmail = (process.env.SMTP_FROM_EMAIL || '').trim().replace(/^"|"$/g, '');
-        const fromEmail = rawFromEmail.includes('@') ? rawFromEmail : (process.env.SMTP_USER || 'noreply@phygital.local');
+if (mailProvider !== 'brevo_api') {
+  initSmtpTransport();
+} else {
+  logger.info('Mailer: Using Brevo HTTP API transport');
+}
 
-        const result = await transporter.sendMail({
-            from: `"${ process.env.SMTP_FROM_NAME || 'CampuSync' }" <${ fromEmail }>`,
-            to,
-            subject,
-            html,
-        });
-        logger.info(`Email sent to ${ to }: ${ subject } [${ result.messageId }]`);
-        return result;
-    } catch(err) {
-        const msg = err?.message || String(err);
-        const code = err?.code || 'UNKNOWN';
-        logger.error(`Failed to send email to ${ to }: ${ msg } (code: ${ code })`);
-        throw err;
+async function sendMail(to, subject, html) {
+  try {
+    if (mailProvider === 'brevo_api') {
+      const result = await sendViaBrevoApi(to, subject, html);
+      logger.info(`Email sent via brevo_api to ${to}: ${subject} [${result.messageId}]`);
+      return result;
     }
+
+    const fromEmail = sanitizeFromEmail();
+    const result = await smtpTransporter.sendMail({
+      from: `"${process.env.SMTP_FROM_NAME || 'CampuSync'}" <${fromEmail}>`,
+      to,
+      subject,
+      html,
+    });
+    logger.info(`Email sent via smtp to ${to}: ${subject} [${result.messageId}]`);
+    return result;
+  } catch (err) {
+    const n = normalizeError(err);
+    logger.error(`Failed to send email to ${to}: ${n.message} (code: ${n.code})`);
+    throw err;
+  }
 }
 
-module.exports = { sendMail, transporter };
-
-
+module.exports = { sendMail, smtpTransporter };
