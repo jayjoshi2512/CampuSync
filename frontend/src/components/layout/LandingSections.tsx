@@ -55,7 +55,11 @@ export const features = [
   },
 ];
 
-export function LandingNavbar({ isCompactLayout }: { isCompactLayout: boolean }) {
+export function LandingNavbar({
+  isCompactLayout,
+}: {
+  isCompactLayout: boolean;
+}) {
   const navigate = useNavigate();
   return (
     <nav
@@ -148,7 +152,8 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
           width: 900,
           height: 900,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%)",
+          background:
+            "radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%)",
           pointerEvents: "none",
         }}
       />
@@ -265,8 +270,10 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
       >
         <div
           style={{
-            background: "color-mix(in srgb, var(--color-brand) 10%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--color-brand) 30%, transparent)",
+            background:
+              "color-mix(in srgb, var(--color-brand) 10%, transparent)",
+            border:
+              "1px solid color-mix(in srgb, var(--color-brand) 30%, transparent)",
             borderRadius: 12,
             padding: "16px 24px",
             maxWidth: 600,
@@ -276,12 +283,38 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
             gap: 8,
           }}
         >
-          <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-primary)", fontWeight: 600 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              color: "var(--color-text-primary)",
+              fontWeight: 600,
+            }}
+          >
             🚀 Demo Environment Notes:
           </p>
-          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "var(--color-text-muted)", lineHeight: 1.5 }}>
-            <li><strong>Frontend:</strong> Vercel | <strong>Backend:</strong> Render | <strong>Emails:</strong> Twilio SendGrid</li>
-            <li><strong>Note:</strong> Since the backend is hosted on a free Render instance, it sleeps after inactivity. <strong>Your first request (like login or loading data) may take 50+ seconds or fail.</strong> If it fails, please wait a minute and try again!</li>
+          <ul
+            style={{
+              margin: 0,
+              paddingLeft: 20,
+              fontSize: 13,
+              color: "var(--color-text-muted)",
+              lineHeight: 1.5,
+            }}
+          >
+            <li>
+              <strong>Frontend:</strong> Vercel | <strong>Backend:</strong>{" "}
+              Render | <strong>Emails:</strong> Twilio SendGrid
+            </li>
+            <li>
+              <strong>Note:</strong> Since the backend is hosted on a free
+              Render instance, it sleeps after inactivity.{" "}
+              <strong>
+                Your first request (like login or loading data) may take 50+
+                seconds or fail.
+              </strong>{" "}
+              If it fails, please wait a minute and try again!
+            </li>
           </ul>
         </div>
       </motion.div>
@@ -289,7 +322,11 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
   );
 }
 
-export function LandingFeatures({ isCompactLayout }: { isCompactLayout: boolean }) {
+export function LandingFeatures({
+  isCompactLayout,
+}: {
+  isCompactLayout: boolean;
+}) {
   return (
     <section
       style={{
