@@ -55,13 +55,6 @@ export const features = [
   },
 ];
 
-export const stats = [
-  { value: "10K+", label: "Cards Generated" },
-  { value: "50+", label: "Institutions" },
-  { value: "99.9%", label: "Uptime" },
-  { value: "< 200ms", label: "Response Time" },
-];
-
 export function LandingNavbar({ isCompactLayout }: { isCompactLayout: boolean }) {
   const navigate = useNavigate();
   return (
@@ -266,29 +259,31 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
         style={{
           display: "flex",
           justifyContent: "center",
-          gap: 48,
           marginTop: 64,
-          flexWrap: "wrap",
+          paddingInline: 16,
         }}
       >
-        {stats.map((s) => (
-          <div key={s.label}>
-            <p
-              style={{
-                fontSize: 28,
-                fontWeight: 800,
-                color: "var(--color-text-primary)",
-                fontFamily: "var(--font-mono)",
-                lineHeight: 1,
-              }}
-            >
-              {s.value}
-            </p>
-            <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 4 }}>
-              {s.label}
-            </p>
-          </div>
-        ))}
+        <div
+          style={{
+            background: "color-mix(in srgb, var(--color-brand) 10%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-brand) 30%, transparent)",
+            borderRadius: 12,
+            padding: "16px 24px",
+            maxWidth: 600,
+            textAlign: "left",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 13, color: "var(--color-text-primary)", fontWeight: 600 }}>
+            🚀 Demo Environment Notes:
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "var(--color-text-muted)", lineHeight: 1.5 }}>
+            <li><strong>Frontend:</strong> Vercel | <strong>Backend:</strong> Render | <strong>Emails:</strong> Twilio SendGrid</li>
+            <li><strong>Note:</strong> Since the backend is hosted on a free Render instance, it sleeps after inactivity. <strong>Your first request (like login or loading data) may take 50+ seconds or fail.</strong> If it fails, please wait a minute and try again!</li>
+          </ul>
+        </div>
       </motion.div>
     </section>
   );
