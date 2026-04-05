@@ -58,7 +58,7 @@ CampuSync helps educational institutions create premium digital farewell cards f
 | **Cache/Session** | Upstash Redis (HTTP REST) with in-memory fallback |
 | **Auth** | JWT (role-based: Super Admin, Admin, User/Alumni), Magic Links, OTP |
 | **Email** | Nodemailer (SMTP), responsive HTML templates |
-| **File Storage** | Cloudinary (avatars, memories, card assets) |
+| **File Storage** | Cloudinary Free Tier (avatars, memories, card assets) |
 | **Payments** | Razorpay (subscription billing) |
 | **Security** | Helmet, CORS, rate limiting, Cloudflare Turnstile, bcrypt |
 | **Real-time** | Server-Sent Events (SSE) for notifications |
@@ -194,7 +194,7 @@ Visit **http://localhost:5173** to access the application.
     └────┬────┘
          │ CSV/Manual Import → Magic Link Email
     ┌────▼────┐
-    │ Student │──── Password Login / Magic Link
+    │ Student │──── Set Up Password → Password Login
     │ /Alumni │──── Access Portal Features
     └─────────┘
 ```
