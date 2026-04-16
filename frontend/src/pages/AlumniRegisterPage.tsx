@@ -82,7 +82,6 @@ export default function AlumniRegisterPage() {
       await api.post("/register/alumni/send-otp", {
         email: form.email,
         name: form.name,
-        cf_turnstile_token: "test_key",
       });
       setOtpSent(true);
       toast("Verification code sent to your email", "success");
@@ -123,7 +122,6 @@ export default function AlumniRegisterPage() {
         batch_year: form.batch_year ? Number(form.batch_year) : null,
         linkedin_url: form.linkedin_url || null,
         reason: form.reason || null,
-        cf_turnstile_token: "test_key",
       });
       toast("Alumni request submitted. Wait for admin approval.", "success");
       navigate("/login");
