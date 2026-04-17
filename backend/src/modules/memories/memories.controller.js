@@ -7,27 +7,27 @@ const { logger } = require('../../../config/database');
 const { FREE_LIMITS } = require('../../../middleware/checkMemoryUploadLimits');
 const mongoose = require('mongoose');
 
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'];
+const ALLOWED_MIME_TYPES = [ 'image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime' ];
 
-async function buildUploaderMaps(items) {
+async function buildUploaderMaps (items) {
     const userUploaderIds = [];
     const adminUploaderIds = [];
 
-    for (const item of items) {
+    for(const item of items) {
         const uploaderId = item.uploaded_by?.toString();
-        if (!uploaderId) continue;
+        if(!uploaderId) continue;
 
-        if ((item.uploaded_by_role || 'user') === 'admin') {
+        if((item.uploaded_by_role || 'user') === 'admin') {
             adminUploaderIds.push(uploaderId);
         } else {
             userUploaderIds.push(uploaderId);
         }
     }
 
-    const uniqueUserIds = [...new Set(userUploaderIds)];
-    const uniqueAdminIds = [...new Set(adminUploaderIds)];
+    const uniqueUserIds = [ ...new Set(userUploaderIds) ];
+    const uniqueAdminIds = [ ...new Set(adminUploaderIds) ];
 
-    const [users, admins] = await Promise.all([
+    const [ users, admins ] = await Promise.all([
         uniqueUserIds.length > 0
             ? User.find({ _id: { $in: uniqueUserIds } }).select('_id name avatar_url branch').lean()
             : Promise.resolve([]),
@@ -37,8 +37,8 @@ async function buildUploaderMaps(items) {
     ]);
 
     const userMap = {};
-    for (const user of users) {
-        userMap[user._id.toString()] = {
+    for(const user of users) {
+        userMap[ user._id.toString() ] = {
             name: user.name,
             avatar_url: user.avatar_url || null,
             branch: user.branch || null,
@@ -47,8 +47,8 @@ async function buildUploaderMaps(items) {
     }
 
     const adminMap = {};
-    for (const admin of admins) {
-        adminMap[admin._id.toString()] = {
+    for(const admin of admins) {
+        adminMap[ admin._id.toString() ] = {
             name: admin.name,
             avatar_url: null,
             actor_role: 'admin',
@@ -58,17 +58,17 @@ async function buildUploaderMaps(items) {
     return { userMap, adminMap };
 }
 
-function resolveUploader(memory, userMap, adminMap) {
+function resolveUploader (memory, userMap, adminMap) {
     const uploaderId = memory.uploaded_by?.toString();
     const uploaderRole = memory.uploaded_by_role || 'user';
 
     const mappedUploader = uploaderRole === 'admin'
-        ? adminMap[uploaderId]
-        : userMap[uploaderId];
+        ? adminMap[ uploaderId ]
+        : userMap[ uploaderId ];
 
-    if (mappedUploader) return mappedUploader;
+    if(mappedUploader) return mappedUploader;
 
-    if (memory.uploader_snapshot_name) {
+    if(memory.uploader_snapshot_name) {
         return {
             name: memory.uploader_snapshot_name,
             avatar_url: memory.uploader_snapshot_avatar || null,
@@ -79,49 +79,49 @@ function resolveUploader(memory, userMap, adminMap) {
     return null;
 }
 
-async function getMemories(req, res) {
+async function getMemories (req, res) {
     try {
         const { cursor, limit = 20 } = req.query;
         const query = { organization_id: req.actor.org, is_active: true };
 
-        if (req.query.uploaded_by) query.uploaded_by = req.query.uploaded_by;
+        if(req.query.uploaded_by) query.uploaded_by = req.query.uploaded_by;
 
-        if (req.query.branch) {
+        if(req.query.branch) {
             const branchUserIds = (await User.find({ organization_id: req.actor.org, branch: req.query.branch, is_active: true }).select('_id').lean()).map(u => u._id);
             query.uploaded_by = { $in: branchUserIds };
         }
 
-        if (req.query.from_date || req.query.to_date) {
+        if(req.query.from_date || req.query.to_date) {
             query.created_at = {};
-            if (req.query.from_date) query.created_at.$gte = new Date(req.query.from_date);
-            if (req.query.to_date) { const d = new Date(req.query.to_date); d.setHours(23, 59, 59, 999); query.created_at.$lte = d; }
+            if(req.query.from_date) query.created_at.$gte = new Date(req.query.from_date);
+            if(req.query.to_date) { const d = new Date(req.query.to_date); d.setHours(23, 59, 59, 999); query.created_at.$lte = d; }
         }
 
-        if (cursor) query._id = { $lt: cursor };
+        if(cursor) query._id = { $lt: cursor };
 
         const memories = await Memory.find(query).sort({ _id: -1 }).limit(parseInt(limit) + 1).lean();
         const hasMore = memories.length > parseInt(limit);
         const items = memories.slice(0, parseInt(limit));
-        const nextCursor = hasMore ? items[items.length - 1]._id : null;
+        const nextCursor = hasMore ? items[ items.length - 1 ]._id : null;
 
         const { userMap, adminMap } = await buildUploaderMaps(items);
 
         const memIds = items.map(m => m._id);
         const reactions = await MemoryReaction.find({ memory_id: { $in: memIds }, is_active: true }).lean();
         const reactionsByMemory = {};
-        for (const r of reactions) {
+        for(const r of reactions) {
             const key = r.memory_id.toString();
-            if (!reactionsByMemory[key]) reactionsByMemory[key] = [];
-            reactionsByMemory[key].push(r);
+            if(!reactionsByMemory[ key ]) reactionsByMemory[ key ] = [];
+            reactionsByMemory[ key ].push(r);
         }
 
         const result = items.map(memory => {
-            const memReactions = reactionsByMemory[memory._id.toString()] || [];
+            const memReactions = reactionsByMemory[ memory._id.toString() ] || [];
             const reactionCounts = {};
             const viewerReactions = [];
-            for (const r of memReactions) {
-                reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
-                if (r.user_id?.toString() === req.actor.id?.toString()) viewerReactions.push(r.emoji);
+            for(const r of memReactions) {
+                reactionCounts[ r.emoji ] = (reactionCounts[ r.emoji ] || 0) + 1;
+                if(r.user_id?.toString() === req.actor.id?.toString()) viewerReactions.push(r.emoji);
             }
             return {
                 ...memory,
@@ -134,17 +134,17 @@ async function getMemories(req, res) {
         });
 
         res.json({ items: result, nextCursor, hasMore });
-    } catch (err) {
+    } catch(err) {
         logger.error('getMemories error:', err.message);
         res.status(500).json({ error: 'Failed to load memories.' });
     }
 }
 
-async function uploadMemory(req, res) {
+async function uploadMemory (req, res) {
     try {
-        if (!req.file) return res.status(400).json({ error: 'File is required.' });
-        if (!ALLOWED_MIME_TYPES.includes(req.file.mimetype)) {
-            return res.status(400).json({ error: `Invalid file type: ${req.file.mimetype}. Allowed: JPEG, PNG, WebP, MP4, QuickTime.` });
+        if(!req.file) return res.status(400).json({ error: 'File is required.' });
+        if(!ALLOWED_MIME_TYPES.includes(req.file.mimetype)) {
+            return res.status(400).json({ error: `Invalid file type: ${ req.file.mimetype }. Allowed: JPEG, PNG, WebP, MP4, QuickTime.` });
         }
 
         const isVideo = req.file.mimetype.startsWith('video');
@@ -152,7 +152,7 @@ async function uploadMemory(req, res) {
         const org = req.org;
 
         const uploadResult = await uploadStream(req.file.buffer, {
-            folder: `org_${org._id}/memories`,
+            folder: `org_${ org._id }/memories`,
             resource_type: isVideo ? 'video' : 'image',
         });
 
@@ -180,57 +180,57 @@ async function uploadMemory(req, res) {
         await org.save();
 
         const orgUsers = await User.find({ organization_id: org._id, is_active: true }).select('_id').lean();
-        for (const u of orgUsers) {
-            if (u._id.toString() !== req.actor.id?.toString()) {
-                createUserNotification(u._id, { type: 'new_memory', title: 'New memory shared!', body: `${req.actor.name || 'Someone'} uploaded a new ${mediaType}.`, action_url: '/portal' })
-                    .catch(e => logger.error(`Notification creation failed for user ${u._id}:`, e.message));
+        for(const u of orgUsers) {
+            if(u._id.toString() !== req.actor.id?.toString()) {
+                createUserNotification(u._id, { type: 'new_memory', title: 'New memory shared!', body: `${ req.actor.name || 'Someone' } uploaded a new ${ mediaType }.`, action_url: '/portal' })
+                    .catch(e => logger.error(`Notification creation failed for user ${ u._id }:`, e.message));
             }
         }
 
         const orgAdmins = await Admin.find({ organization_id: org._id, is_active: true }).select('_id').lean();
-        for (const admin of orgAdmins) {
-            const note = addTransientNotification({ role: 'admin', id: admin._id }, { type: 'new_memory', title: 'New memory activity', body: `${req.actor.name || 'A user'} uploaded a new ${mediaType}.`, action_url: '/admin/dashboard' });
+        for(const admin of orgAdmins) {
+            const note = addTransientNotification({ role: 'admin', id: admin._id }, { type: 'new_memory', title: 'New memory activity', body: `${ req.actor.name || 'A user' } uploaded a new ${ mediaType }.`, action_url: '/admin/dashboard' });
             emitNotificationToActor({ role: 'admin', id: admin._id }, note);
         }
 
         const superAdmins = await SuperAdmin.find({ is_active: true }).select('_id').lean();
-        for (const sa of superAdmins) {
-            const note = addTransientNotification({ role: 'super_admin', id: sa._id }, { type: 'system', title: 'Platform memory event', body: `${org.name}: new ${mediaType} uploaded.`, action_url: '/super-admin/dashboard' });
+        for(const sa of superAdmins) {
+            const note = addTransientNotification({ role: 'super_admin', id: sa._id }, { type: 'system', title: 'Platform memory event', body: `${ org.name }: new ${ mediaType } uploaded.`, action_url: '/super-admin/dashboard' });
             emitNotificationToActor({ role: 'super_admin', id: sa._id }, note);
         }
 
         res.status(201).json({ message: 'Memory uploaded.', memory });
-    } catch (err) {
+    } catch(err) {
         logger.error('uploadMemory error:', err.message);
         res.status(500).json({ error: 'Upload failed.' });
     }
 }
 
-async function deleteMemory(req, res) {
+async function deleteMemory (req, res) {
     try {
         const memory = await Memory.findById(req.params.id);
-        if (!memory) return res.status(404).json({ error: 'Memory not found.' });
-        if (memory.uploaded_by?.toString() !== req.actor.id?.toString()) {
+        if(!memory) return res.status(404).json({ error: 'Memory not found.' });
+        if(memory.uploaded_by?.toString() !== req.actor.id?.toString()) {
             return res.status(403).json({ error: 'You can only delete your own memories.' });
         }
         memory.is_active = false;
         await memory.save();
         auditLog.log('user', req.actor.id, 'MEMORY_DELETED', 'memory', memory._id, null, req);
         res.json({ message: 'Memory deleted.' });
-    } catch (err) {
+    } catch(err) {
         logger.error('deleteMemory error:', err.message);
         res.status(500).json({ error: 'Failed to delete memory.' });
     }
 }
 
-async function getMyMemoryUsage(req, res) {
+async function getMyMemoryUsage (req, res) {
     try {
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
         const end = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
 
         const baseQuery = { organization_id: req.actor.org, uploaded_by: req.actor.id, is_active: true, created_at: { $gte: start, $lt: end } };
-        const [photoCount, videoCount] = await Promise.all([
+        const [ photoCount, videoCount ] = await Promise.all([
             Memory.countDocuments({ ...baseQuery, media_type: 'photo' }),
             Memory.countDocuments({ ...baseQuery, media_type: 'video' }),
         ]);
@@ -253,56 +253,56 @@ async function getMyMemoryUsage(req, res) {
                 video_size_limit_mb: FREE_LIMITS.videoSizeMb,
             },
         });
-    } catch (err) {
+    } catch(err) {
         logger.error('getMyMemoryUsage error:', err.message);
         return res.status(500).json({ error: 'Failed to load memory usage.' });
     }
 }
 
-async function getPublicUserMemories(req, res) {
+async function getPublicUserMemories (req, res) {
     try {
         const { user_id } = req.params;
         const { cursor, limit = 20 } = req.query;
 
         const user = await User.findById(user_id).select('_id name organization_id branch batch_year avatar_url').lean();
-        if (!user) return res.status(404).json({ error: 'User not found.' });
+        if(!user) return res.status(404).json({ error: 'User not found.' });
 
         const query = { organization_id: user.organization_id, uploaded_by: user._id, is_active: true };
-        if (cursor) query._id = { $lt: cursor };
+        if(cursor) query._id = { $lt: cursor };
 
         const memories = await Memory.find(query).sort({ _id: -1 }).limit(parseInt(limit) + 1).lean();
         const hasMore = memories.length > parseInt(limit);
         const items = memories.slice(0, parseInt(limit));
-        const nextCursor = hasMore ? items[items.length - 1]._id : null;
+        const nextCursor = hasMore ? items[ items.length - 1 ]._id : null;
 
         const memIds = items.map(m => m._id);
         const reactions = await MemoryReaction.find({ memory_id: { $in: memIds }, is_active: true }).lean();
         const reactionsByMemory = {};
-        for (const r of reactions) {
+        for(const r of reactions) {
             const key = r.memory_id.toString();
-            if (!reactionsByMemory[key]) reactionsByMemory[key] = [];
-            reactionsByMemory[key].push(r);
+            if(!reactionsByMemory[ key ]) reactionsByMemory[ key ] = [];
+            reactionsByMemory[ key ].push(r);
         }
 
         const result = items.map(memory => {
-            const memReactions = reactionsByMemory[memory._id.toString()] || [];
+            const memReactions = reactionsByMemory[ memory._id.toString() ] || [];
             const reactionCounts = {};
-            for (const r of memReactions) reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
+            for(const r of memReactions) reactionCounts[ r.emoji ] = (reactionCounts[ r.emoji ] || 0) + 1;
             return { ...memory, id: memory._id.toString(), reaction_counts: reactionCounts, total_reactions: memReactions.length };
         });
 
         res.json({ user: { id: user._id, name: user.name, avatar_url: user.avatar_url, branch: user.branch, batch_year: user.batch_year }, memories: result, nextCursor, hasMore });
-    } catch (err) {
+    } catch(err) {
         logger.error('getPublicUserMemories error:', err.message);
         res.status(500).json({ error: 'Failed to load user memories.' });
     }
 }
 
-async function getMemoryStats(req, res) {
+async function getMemoryStats (req, res) {
     try {
         const orgId = req.actor.org;
 
-        const [totalMemories, photoCount, videoCount] = await Promise.all([
+        const [ totalMemories, photoCount, videoCount ] = await Promise.all([
             Memory.countDocuments({ organization_id: orgId, is_active: true }),
             Memory.countDocuments({ organization_id: orgId, media_type: 'photo', is_active: true }),
             Memory.countDocuments({ organization_id: orgId, media_type: 'video', is_active: true }),
@@ -312,7 +312,7 @@ async function getMemoryStats(req, res) {
             { $match: { organization_id: new mongoose.Types.ObjectId(orgId), is_active: true } },
             { $group: { _id: null, total: { $sum: '$file_size_mb' } } },
         ]);
-        const totalSizeMb = parseFloat(storageAgg[0]?.total || 0);
+        const totalSizeMb = parseFloat(storageAgg[ 0 ]?.total || 0);
 
         const reactionStats = await MemoryReaction.aggregate([
             { $lookup: { from: 'memories', localField: 'memory_id', foreignField: '_id', as: 'memory' } },
@@ -335,7 +335,7 @@ async function getMemoryStats(req, res) {
             reactions: reactionStats.map(r => ({ emoji: r._id, count: Number(r.count) })),
             top_contributors: topContributors.map(row => ({ user_id: row._id, count: Number(row.count), name: row.user?.name || 'Unknown', avatar_url: row.user?.avatar_url || null })),
         });
-    } catch (err) {
+    } catch(err) {
         logger.error('getMemoryStats error:', err.message);
         res.status(500).json({ error: 'Failed to load memory stats.' });
     }

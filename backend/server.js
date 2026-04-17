@@ -39,11 +39,11 @@ function toOrigin (value) {
     }
 }
 
-const allowedOrigins = [...new Set([
+const allowedOrigins = [ ...new Set([
     process.env.APP_BASE_URL || 'http://localhost:5173',
     'http://localhost:5173',
     'http://localhost:5174',
-].map(toOrigin).filter(Boolean))];
+].map(toOrigin).filter(Boolean)) ];
 
 app.use(cors({
     origin: function(origin, callback) {
