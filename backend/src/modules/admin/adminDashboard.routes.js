@@ -5,10 +5,15 @@ const controller = require('./adminDashboard.controller');
 const memoriesController = require('../memories/memories.controller');
 const { verifyAdminJWT } = require('../../../middleware/auth');
 const { requireOrgActive } = require('../../../middleware/requireOrgActive');
+const { checkStorageLimit } = require('../../../middleware/checkStorageLimit');
+const { checkMemoryUploadLimits } = require('../../../middleware/checkMemoryUploadLimits');
+const { memoryUpload: memoryUploadLimit } = require('../../../middleware/rateLimiter');
+const { memoryUpload: memoryUploadValidate } = require('../../../middleware/validate');
 const multer = require('multer');
 const { announcement, coAdminInvite } = require('../../../middleware/validate');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const memoryUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 router.use(verifyAdminJWT);
 router.use(requireOrgActive);
@@ -26,6 +31,7 @@ router.post('/settings/back-image', upload.single('file'), controller.uploadBack
 router.get('/analytics', controller.getAnalytics);
 router.get('/memories/stats/summary', memoriesController.getMemoryStats);
 router.get('/memories', controller.getMemories);
+router.post('/memories/upload', memoryUploadLimit, checkStorageLimit, memoryUpload.single('file'), checkMemoryUploadLimits, memoryUploadValidate, memoriesController.uploadMemory);
 router.patch('/memories/:id/flag', controller.flagMemory);
 router.delete('/memories/:id', controller.deleteMemory);
 router.post('/announce', announcement, controller.announce);

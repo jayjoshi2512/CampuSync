@@ -5,8 +5,79 @@ const { uploadStream } = require('../../../utils/cloudinaryHelpers');
 const auditLog = require('../../../utils/auditLog');
 const { logger } = require('../../../config/database');
 const { FREE_LIMITS } = require('../../../middleware/checkMemoryUploadLimits');
+const mongoose = require('mongoose');
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'];
+
+async function buildUploaderMaps(items) {
+    const userUploaderIds = [];
+    const adminUploaderIds = [];
+
+    for (const item of items) {
+        const uploaderId = item.uploaded_by?.toString();
+        if (!uploaderId) continue;
+
+        if ((item.uploaded_by_role || 'user') === 'admin') {
+            adminUploaderIds.push(uploaderId);
+        } else {
+            userUploaderIds.push(uploaderId);
+        }
+    }
+
+    const uniqueUserIds = [...new Set(userUploaderIds)];
+    const uniqueAdminIds = [...new Set(adminUploaderIds)];
+
+    const [users, admins] = await Promise.all([
+        uniqueUserIds.length > 0
+            ? User.find({ _id: { $in: uniqueUserIds } }).select('_id name avatar_url branch').lean()
+            : Promise.resolve([]),
+        uniqueAdminIds.length > 0
+            ? Admin.find({ _id: { $in: uniqueAdminIds } }).select('_id name').lean()
+            : Promise.resolve([]),
+    ]);
+
+    const userMap = {};
+    for (const user of users) {
+        userMap[user._id.toString()] = {
+            name: user.name,
+            avatar_url: user.avatar_url || null,
+            branch: user.branch || null,
+            actor_role: 'user',
+        };
+    }
+
+    const adminMap = {};
+    for (const admin of admins) {
+        adminMap[admin._id.toString()] = {
+            name: admin.name,
+            avatar_url: null,
+            actor_role: 'admin',
+        };
+    }
+
+    return { userMap, adminMap };
+}
+
+function resolveUploader(memory, userMap, adminMap) {
+    const uploaderId = memory.uploaded_by?.toString();
+    const uploaderRole = memory.uploaded_by_role || 'user';
+
+    const mappedUploader = uploaderRole === 'admin'
+        ? adminMap[uploaderId]
+        : userMap[uploaderId];
+
+    if (mappedUploader) return mappedUploader;
+
+    if (memory.uploader_snapshot_name) {
+        return {
+            name: memory.uploader_snapshot_name,
+            avatar_url: memory.uploader_snapshot_avatar || null,
+            actor_role: uploaderRole,
+        };
+    }
+
+    return null;
+}
 
 async function getMemories(req, res) {
     try {
@@ -33,10 +104,7 @@ async function getMemories(req, res) {
         const items = memories.slice(0, parseInt(limit));
         const nextCursor = hasMore ? items[items.length - 1]._id : null;
 
-        const uploaderIds = [...new Set(items.map(m => m.uploaded_by?.toString()))];
-        const uploaders = await User.find({ _id: { $in: uploaderIds } }).select('_id name avatar_url branch').lean();
-        const uploaderMap = {};
-        for (const u of uploaders) uploaderMap[u._id.toString()] = u;
+        const { userMap, adminMap } = await buildUploaderMaps(items);
 
         const memIds = items.map(m => m._id);
         const reactions = await MemoryReaction.find({ memory_id: { $in: memIds }, is_active: true }).lean();
@@ -55,7 +123,14 @@ async function getMemories(req, res) {
                 reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
                 if (r.user_id?.toString() === req.actor.id?.toString()) viewerReactions.push(r.emoji);
             }
-            return { ...memory, id: memory._id.toString(), uploader: uploaderMap[memory.uploaded_by?.toString()] || null, reaction_counts: reactionCounts, viewer_reactions: viewerReactions, total_reactions: memReactions.length };
+            return {
+                ...memory,
+                id: memory._id.toString(),
+                uploader: resolveUploader(memory, userMap, adminMap),
+                reaction_counts: reactionCounts,
+                viewer_reactions: viewerReactions,
+                total_reactions: memReactions.length,
+            };
         });
 
         res.json({ items: result, nextCursor, hasMore });
@@ -82,9 +157,13 @@ async function uploadMemory(req, res) {
         });
 
         const fileSizeMb = (req.file.size / (1024 * 1024)).toFixed(3);
+        const uploaderRole = req.actor.role === 'admin' ? 'admin' : 'user';
         const memory = await Memory.create({
             organization_id: org._id,
             uploaded_by: req.actor.id,
+            uploaded_by_role: uploaderRole,
+            uploader_snapshot_name: req.actor.name || null,
+            uploader_snapshot_avatar: req.actor.avatar_url || null,
             media_type: mediaType,
             cloudinary_url: uploadResult.secure_url,
             public_id: uploadResult.public_id,
@@ -261,8 +340,5 @@ async function getMemoryStats(req, res) {
         res.status(500).json({ error: 'Failed to load memory stats.' });
     }
 }
-
-// import mongoose for ObjectId casting in aggregations
-const mongoose = require('mongoose');
 
 module.exports = { getMemories, getMyMemoryUsage, uploadMemory, deleteMemory, getPublicUserMemories, getMemoryStats };

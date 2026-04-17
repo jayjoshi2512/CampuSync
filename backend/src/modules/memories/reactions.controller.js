@@ -39,8 +39,25 @@ async function addReaction(req, res) {
         const viewerReactions = viewerRows.map(r => r.emoji);
 
         if (memory.uploaded_by?.toString() !== req.actor.id?.toString()) {
-            createUserNotification(memory.uploaded_by, { type: 'system', title: 'New reaction on your memory', body: `${reactor?.name || 'Someone'} reacted ${emoji} to your memory.`, action_url: '/portal?tab=memories' })
-                .catch(e => logger.error('Failed to create reaction notification:', e.message));
+            if ((memory.uploaded_by_role || 'user') === 'admin') {
+                const note = addTransientNotification(
+                    { role: 'admin', id: memory.uploaded_by },
+                    {
+                        type: 'system',
+                        title: 'New reaction on your memory',
+                        body: `${reactor?.name || 'Someone'} reacted ${emoji} to your memory.`,
+                        action_url: '/admin/dashboard?tab=memories',
+                    },
+                );
+                emitNotificationToActor({ role: 'admin', id: memory.uploaded_by }, note);
+            } else {
+                createUserNotification(memory.uploaded_by, {
+                    type: 'system',
+                    title: 'New reaction on your memory',
+                    body: `${reactor?.name || 'Someone'} reacted ${emoji} to your memory.`,
+                    action_url: '/portal?tab=memories',
+                }).catch(e => logger.error('Failed to create reaction notification:', e.message));
+            }
         }
 
         if (reactor?.organization_id) {

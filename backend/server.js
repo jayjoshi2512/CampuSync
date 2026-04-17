@@ -30,11 +30,20 @@ app.use(helmet({
 // ============================================
 // CORS
 // ============================================
-const allowedOrigins = [
+function toOrigin (value) {
+    if(!value) return null;
+    try {
+        return new URL(value).origin;
+    } catch {
+        return null;
+    }
+}
+
+const allowedOrigins = [...new Set([
     process.env.APP_BASE_URL || 'http://localhost:5173',
     'http://localhost:5173',
     'http://localhost:5174',
-].filter(Boolean);
+].map(toOrigin).filter(Boolean))];
 
 app.use(cors({
     origin: function(origin, callback) {

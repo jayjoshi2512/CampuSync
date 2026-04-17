@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/utils/api';
 import { useToast } from '@/components/ToastProvider';
+import { useAuthStore } from '@/store/authStore';
 
 interface MemoryUploaderProps {
   onSuccess?: () => void;
@@ -22,6 +23,7 @@ export default function MemoryUploader({ onSuccess, onClose, isDemo }: MemoryUpl
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const role = useAuthStore((s) => s.role);
 
   const handleFile = useCallback((f: File) => {
     if (!ACCEPTED.includes(f.type)) {
@@ -56,12 +58,21 @@ export default function MemoryUploader({ onSuccess, onClose, isDemo }: MemoryUpl
       onClose();
       return;
     }
+
+    let uploadEndpoint: string | null = null;
+    if (role === 'admin') uploadEndpoint = '/admin/memories/upload';
+    if (role === 'user' || role === 'alumni') uploadEndpoint = '/memories/upload';
+    if (!uploadEndpoint) {
+      toast('Upload is available in admin, user, or alumni portals only', 'warning');
+      return;
+    }
+
     setUploading(true);
     const formData = new FormData();
     formData.append('file', file);
     if (caption) formData.append('caption', caption);
     try {
-      await api.post('/memories/upload', formData, {
+      await api.post(uploadEndpoint, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (e) => setProgress(Math.round((e.loaded * 100) / (e.total || 1))),
       });
@@ -69,7 +80,11 @@ export default function MemoryUploader({ onSuccess, onClose, isDemo }: MemoryUpl
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      toast(err.response?.data?.error || 'Upload failed', 'error');
+      const status = err?.response?.status;
+      const message = status === 401
+        ? 'Session expired. Please log in again.'
+        : (err.response?.data?.error || 'Upload failed');
+      toast(message, 'error');
     } finally {
       setUploading(false);
       setProgress(0);

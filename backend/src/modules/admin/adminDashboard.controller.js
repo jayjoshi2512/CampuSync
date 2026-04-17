@@ -13,6 +13,76 @@ const auditLog = require('../../../utils/auditLog');
 const redis = require('../../../config/redis');
 const { logger } = require('../../../config/database');
 
+async function buildUploaderMaps(items) {
+    const userUploaderIds = [];
+    const adminUploaderIds = [];
+
+    for (const item of items) {
+        const uploaderId = item.uploaded_by?.toString();
+        if (!uploaderId) continue;
+
+        if ((item.uploaded_by_role || 'user') === 'admin') {
+            adminUploaderIds.push(uploaderId);
+        } else {
+            userUploaderIds.push(uploaderId);
+        }
+    }
+
+    const uniqueUserIds = [...new Set(userUploaderIds)];
+    const uniqueAdminIds = [...new Set(adminUploaderIds)];
+
+    const [users, admins] = await Promise.all([
+        uniqueUserIds.length > 0
+            ? User.find({ _id: { $in: uniqueUserIds } }).select('_id name avatar_url branch').lean()
+            : Promise.resolve([]),
+        uniqueAdminIds.length > 0
+            ? Admin.find({ _id: { $in: uniqueAdminIds } }).select('_id name').lean()
+            : Promise.resolve([]),
+    ]);
+
+    const userMap = {};
+    for (const user of users) {
+        userMap[user._id.toString()] = {
+            name: user.name,
+            avatar_url: user.avatar_url || null,
+            branch: user.branch || null,
+            actor_role: 'user',
+        };
+    }
+
+    const adminMap = {};
+    for (const admin of admins) {
+        adminMap[admin._id.toString()] = {
+            name: admin.name,
+            avatar_url: null,
+            actor_role: 'admin',
+        };
+    }
+
+    return { userMap, adminMap };
+}
+
+function resolveUploader(memory, userMap, adminMap) {
+    const uploaderId = memory.uploaded_by?.toString();
+    const uploaderRole = memory.uploaded_by_role || 'user';
+
+    const mappedUploader = uploaderRole === 'admin'
+        ? adminMap[uploaderId]
+        : userMap[uploaderId];
+
+    if (mappedUploader) return mappedUploader;
+
+    if (memory.uploader_snapshot_name) {
+        return {
+            name: memory.uploader_snapshot_name,
+            avatar_url: memory.uploader_snapshot_avatar || null,
+            actor_role: uploaderRole,
+        };
+    }
+
+    return null;
+}
+
 /**
  * GET /api/admin/cohort
  */
@@ -402,7 +472,6 @@ async function getMemories(req, res) {
         }
         if (cursor) where._id = { $lt: cursor };
 
-        let memQuery = Memory.find(where).sort({ _id: -1 }).limit(parseInt(limit) + 1);
         if (branch) {
             // need to filter by uploader branch — get user IDs first
             const branchUserIds = (await User.find({ organization_id: req.actor.org, branch, is_active: true }).select('_id').lean()).map(u => u._id);
@@ -415,10 +484,7 @@ async function getMemories(req, res) {
         const nextCursor = hasMore ? items[items.length - 1]._id : null;
 
         // Attach uploader and reactions
-        const uploaderIds = [...new Set(items.map(m => m.uploaded_by?.toString()))];
-        const uploaders = await User.find({ _id: { $in: uploaderIds } }).select('_id name avatar_url branch').lean();
-        const uploaderMap = {};
-        for (const u of uploaders) uploaderMap[u._id.toString()] = u;
+        const { userMap, adminMap } = await buildUploaderMaps(items);
 
         const memIds = items.map(m => m._id);
         const reactions = await MemoryReaction.find({ memory_id: { $in: memIds }, is_active: true }).lean();
@@ -437,7 +503,14 @@ async function getMemories(req, res) {
                 reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
                 if (r.user_id?.toString() === req.actor.id?.toString()) viewerReactions.push(r.emoji);
             }
-            return { ...memory, id: memory._id.toString(), uploader: uploaderMap[memory.uploaded_by?.toString()] || null, reaction_counts: reactionCounts, viewer_reactions: viewerReactions, total_reactions: memReactions.length };
+            return {
+                ...memory,
+                id: memory._id.toString(),
+                uploader: resolveUploader(memory, userMap, adminMap),
+                reaction_counts: reactionCounts,
+                viewer_reactions: viewerReactions,
+                total_reactions: memReactions.length,
+            };
         });
 
         res.json({ items: result, nextCursor, hasMore });

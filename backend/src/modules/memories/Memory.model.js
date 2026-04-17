@@ -4,6 +4,9 @@ const mongoose = require('mongoose');
 const memorySchema = new mongoose.Schema({
   organization_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
   uploaded_by:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  uploaded_by_role:{ type: String, enum: ['user', 'admin'], default: 'user' },
+  uploader_snapshot_name: { type: String, default: null },
+  uploader_snapshot_avatar: { type: String, default: null },
   media_type:      { type: String, enum: ['photo', 'video'], required: true },
   cloudinary_url:  { type: String, required: true },
   public_id:       { type: String, required: true },
