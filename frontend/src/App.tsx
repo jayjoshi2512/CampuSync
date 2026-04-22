@@ -60,14 +60,20 @@ export default function App() {
               </Route>
 
               {/* Admin (keep /admin/login as redirect) */}
-              <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+              <Route
+                path="/admin/login"
+                element={<Navigate to="/login" replace />}
+              />
               <Route
                 path="/admin/setup-password"
                 element={<AdminSetupPassword />}
               />
               <Route
                 element={
-                  <ProtectedRoute allowedRoles={["admin"]} redirectTo="/login" />
+                  <ProtectedRoute
+                    allowedRoles={["admin"]}
+                    redirectTo="/login"
+                  />
                 }
               >
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -77,9 +83,10 @@ export default function App() {
               <Route path="/portal" element={<UserPortal />} />
               <Route path="/alumni" element={<AlumniPortal />} />
               <Route path="/alumni-demo" element={<AlumniPortal />} />
-              <Route path="/memories/:user_id" element={<UserMemoryProfile />} />
-
-
+              <Route
+                path="/memories/:user_id"
+                element={<UserMemoryProfile />}
+              />
 
               {/* Catch-all */}
               <Route
@@ -106,7 +113,10 @@ export default function App() {
                         404
                       </h1>
                       <p
-                        style={{ color: "var(--color-text-muted)", fontSize: 15 }}
+                        style={{
+                          color: "var(--color-text-muted)",
+                          fontSize: 15,
+                        }}
                       >
                         Page not found
                       </p>
