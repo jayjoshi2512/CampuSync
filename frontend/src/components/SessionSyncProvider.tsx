@@ -29,7 +29,7 @@ export default function SessionSyncProvider({
 }) {
   const token = useAuthStore((state) => state.token);
   const role = useAuthStore((state) => state.role);
-  const userId = useAuthStore((state) => state.user?.id);
+  const userId = useAuthStore((state) => state.actor?.id);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const socketRef = useRef<Socket | null>(null);
 
@@ -87,31 +87,31 @@ export default function SessionSyncProvider({
       }
     };
 
-    socketRef.current.on("session:sync-required", async (data) => {
+    socketRef.current.on("session:sync-required", async (data: unknown) => {
       console.log("[Socket.io] Session sync required:", data);
       await syncSession();
     });
 
     // Listen for org updates (plan, settings, etc.)
-    socketRef.current.on("org:updated", async (data) => {
+    socketRef.current.on("org:updated", async (data: unknown) => {
       console.log("[Socket.io] Organization updated:", data);
       await syncSession();
     });
 
     // Listen for payment success notifications
-    socketRef.current.on("payment:success", (data) => {
+    socketRef.current.on("payment:success", (data: unknown) => {
       console.log("[Socket.io] Payment success:", data);
       syncSession();
     });
 
     // Listen for new notifications
-    socketRef.current.on("notification:new", (data) => {
+    socketRef.current.on("notification:new", (data: unknown) => {
       console.log("[Socket.io] New notification:", data);
       // Show toast or notification badge
     });
 
     // Handle connection errors
-    socketRef.current.on("connect_error", (error) => {
+    socketRef.current.on("connect_error", (error: unknown) => {
       console.error("[Socket.io] Connection error:", error);
     });
 
