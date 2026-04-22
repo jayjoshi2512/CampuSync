@@ -81,24 +81,7 @@ function baseWrapper(content) {
 </html>`;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   COPY ROW — selectable full-width text row with clipboard icon
-   Email clients cannot run JS. We use user-select:all so the
-   text is instantly highlighted on a single click/tap.
-   The clipboard SVG icon is a visual affordance.
-════════════════════════════════════════════════════════════= */
-function copyRow(text) {
-    const svgClipboard = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-    return `
-<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin-top:10px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;background:rgba(255,255,255,0.03);">
-  <tr>
-    <td style="padding:10px 14px;font-family:'Courier New',Courier,monospace;font-size:12px;color:#9CA3AF;word-break:break-all;-webkit-user-select:all;-moz-user-select:all;user-select:all;cursor:text;line-height:1.5;">${text}</td>
-    <td style="width:36px;padding:8px;background:rgba(255,255,255,0.06);border-left:1px solid rgba(255,255,255,0.08);text-align:center;vertical-align:middle;" title="Click the text to select all, then copy">${svgClipboard}</td>
-  </tr>
-</table>`;
-}
-
-/* OTP display block — large centred code + copyRow below */
+/* OTP display block — large centred code */
 function otpBlock(otp, color) {
     return `
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#161B24;border:1px solid rgba(255,255,255,0.08);border-radius:12px;margin:20px 0;overflow:hidden;">
@@ -107,16 +90,10 @@ function otpBlock(otp, color) {
       <span class="code-num" style="font-family:'Courier New',Courier,monospace;font-size:34px;font-weight:700;color:${color};letter-spacing:8px;display:block;">${otp}</span>
     </td>
   </tr>
-  <tr>
-    <td style="padding:0 24px 20px;">
-      <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:11px;color:#6B7280;text-align:center;">Tap the code to select it, or copy from below:</p>
-      ${copyRow(otp)}
-    </td>
-  </tr>
 </table>`;
 }
 
-/* Primary CTA button + fallback copyRow */
+/* Primary CTA button + plain fallback link */
 function ctaBlock(label, url, bgColor, textColor) {
     return `
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:24px 0 0;" align="center">
@@ -130,8 +107,9 @@ function ctaBlock(label, url, bgColor, textColor) {
   </tr>
   <tr>
     <td>
-      <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;color:#6B7280;">Button not working? Copy the link below:</p>
-      ${copyRow(url)}
+      <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;color:#6B7280;line-height:1.6;word-break:break-all;">
+        Button not working? Open this link directly: <a href="${url}" target="_blank" style="color:${bgColor};text-decoration:underline;">${url}</a>
+      </p>
     </td>
   </tr>
 </table>`;
