@@ -26,26 +26,35 @@ function createLimiter (options) {
     });
 }
 
+function normalizeEmail (value) {
+    return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function registrationKey (req) {
+    const email = normalizeEmail(req.body?.email || req.body?.contact_email);
+    return email || req.ip;
+}
+
 // Registration
 const registerSendOtp = createLimiter({
     windowMs: 60 * 60 * 1000,  // 60 min
     max: 10,
     message: 'Too many OTP requests. Try again in an hour.',
-    keyGenerator: (req) => req.ip,
+    keyGenerator: registrationKey,
 });
 
 const registerVerifyOtp = createLimiter({
     windowMs: 15 * 60 * 1000,  // 15 min
     max: 5,
     message: 'Too many verification attempts. Try again later.',
-    keyGenerator: (req) => req.ip,
+    keyGenerator: registrationKey,
 });
 
 const registerSubmit = createLimiter({
     windowMs: 60 * 60 * 1000,  // 60 min
     max: 5,
     message: 'Too many registration attempts. Try again in an hour.',
-    keyGenerator: (req) => req.ip,
+    keyGenerator: registrationKey,
 });
 
 // Super Admin

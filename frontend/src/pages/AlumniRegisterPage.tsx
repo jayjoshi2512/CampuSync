@@ -130,7 +130,10 @@ export default function AlumniRegisterPage() {
       toast("Alumni request submitted. Wait for admin approval.", "success");
       navigate("/login");
     } catch (err: any) {
-      toast(err.response?.data?.error || "Failed to submit request", "error");
+      const serverError =
+        err.response?.data?.error ||
+        (typeof err.response?.data === "string" ? err.response.data : "");
+      toast(serverError || "Failed to submit request", "error");
     } finally {
       setLoading(false);
     }
