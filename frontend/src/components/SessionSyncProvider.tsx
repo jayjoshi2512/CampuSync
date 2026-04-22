@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { useAuthStore } from "@/store/authStore";
 import api from "@/utils/api";
+import { io, Socket } from "socket.io-client";
 
 type MeEndpoint = "/admin/me" | "/user/me" | null;
 
@@ -17,6 +18,10 @@ function getMeEndpoint(role: string | null): MeEndpoint {
   }
 }
 
+const SOCKET_URL =
+  process.env.REACT_APP_SOCKET_URL ||
+  "https://www.campusync-api.unicodetechnolab.site";
+
 export default function SessionSyncProvider({
   children,
 }: {
@@ -24,11 +29,13 @@ export default function SessionSyncProvider({
 }) {
   const token = useAuthStore((state) => state.token);
   const role = useAuthStore((state) => state.role);
+  const userId = useAuthStore((state) => state.user?.id);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const isSyncingRef = useRef(false);
+  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated || !token || token.startsWith("demo_")) {
+    if (!isAuthenticated || !token || token.startsWith("demo_") || !userId) {
+      socketRef.current?.disconnect();
       return;
     }
 
@@ -37,17 +44,30 @@ export default function SessionSyncProvider({
       return;
     }
 
-    let cancelled = false;
+    // Initialize socket.io connection with JWT auth
+    socketRef.current = io(SOCKET_URL, {
+      auth: { token },
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+      transports: ["websocket", "polling"],
+    });
 
+    // Join user-specific room
+    socketRef.current.on("connect", () => {
+      console.log("[Socket.io] Connected:", socketRef.current?.id);
+      socketRef.current?.emit("join-user-room", {
+        userId,
+        role: role || "user",
+      });
+    });
+
+    // Sync session when server emits session:sync-required
     const syncSession = async () => {
-      if (isSyncingRef.current) {
-        return;
-      }
-
-      isSyncingRef.current = true;
       try {
         const { data } = await api.get(endpoint, { _silent: true } as any);
-        if (cancelled || !data?.actor) {
+        if (!data?.actor) {
           return;
         }
 
@@ -64,19 +84,57 @@ export default function SessionSyncProvider({
         useAuthStore.getState().setAuth(currentToken, data.actor);
       } catch {
         // Silent sync failures are expected when offline or when the session expires.
-      } finally {
-        isSyncingRef.current = false;
       }
     };
 
-    syncSession();
+    socketRef.current.on("session:sync-required", async (data) => {
+      console.log("[Socket.io] Session sync required:", data);
+      await syncSession();
+    });
 
+    // Listen for org updates (plan, settings, etc.)
+    socketRef.current.on("org:updated", async (data) => {
+      console.log("[Socket.io] Organization updated:", data);
+      await syncSession();
+    });
+
+    // Listen for payment success notifications
+    socketRef.current.on("payment:success", (data) => {
+      console.log("[Socket.io] Payment success:", data);
+      syncSession();
+    });
+
+    // Listen for new notifications
+    socketRef.current.on("notification:new", (data) => {
+      console.log("[Socket.io] New notification:", data);
+      // Show toast or notification badge
+    });
+
+    // Handle connection errors
+    socketRef.current.on("connect_error", (error) => {
+      console.error("[Socket.io] Connection error:", error);
+    });
+
+    socketRef.current.on("disconnect", () => {
+      console.log("[Socket.io] Disconnected");
+    });
+
+    // Fallback polling every 30 seconds if socket.io is unavailable
+    const pollInterval = setInterval(async () => {
+      if (!socketRef.current?.connected) {
+        console.log("[Fallback] Socket.io not connected, polling manually");
+        await syncSession();
+      }
+    }, 30000);
+
+    // Sync on visibility change (tab focus)
     const refreshOnReturn = () => {
       if (document.visibilityState === "visible") {
         syncSession();
       }
     };
 
+    // Sync on storage change (logout from another tab)
     const refreshOnStorage = (event: StorageEvent) => {
       if (event.key === "phygital_token" || event.key === "phygital_actor") {
         syncSession();
@@ -89,18 +147,16 @@ export default function SessionSyncProvider({
     document.addEventListener("visibilitychange", refreshOnReturn);
     window.addEventListener("storage", refreshOnStorage);
 
-    const interval = window.setInterval(syncSession, 15000);
-
     return () => {
-      cancelled = true;
-      window.clearInterval(interval);
+      window.clearInterval(pollInterval);
       window.removeEventListener("focus", syncSession);
       window.removeEventListener("online", syncSession);
       window.removeEventListener("pageshow", syncSession);
       document.removeEventListener("visibilitychange", refreshOnReturn);
       window.removeEventListener("storage", refreshOnStorage);
+      socketRef.current?.disconnect();
     };
-  }, [isAuthenticated, role, token]);
+  }, [isAuthenticated, role, token, userId]);
 
   return <>{children}</>;
 }

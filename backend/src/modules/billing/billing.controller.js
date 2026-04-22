@@ -5,6 +5,7 @@ const { verifyWebhookSignature, getPlanLimits, formatAmountDisplay } = require('
 const { sendMail } = require('../../../config/mailer');
 const auditLog = require('../../../utils/auditLog');
 const { logger } = require('../../../config/database');
+const { emitPaymentSuccess, emitOrgUpdate, emitSessionSync } = require('../../../utils/socketEvents');
 
 async function createSubscription(req, res) {
     try {
@@ -71,6 +72,8 @@ async function handleWebhook(req, res) {
         const payload = event.payload;
         logger.info(`Razorpay webhook: ${eventType}`);
 
+        const io = req.app.get('io');
+
         switch (eventType) {
             case 'subscription.activated': {
                 const sub = payload.subscription?.entity;
@@ -88,6 +91,13 @@ async function handleWebhook(req, res) {
                     org.razorpay_subscription_id = sub.id;
                     await org.save();
                     auditLog.log('system', null, 'SUBSCRIPTION_ACTIVATED', 'organization', org._id, { plan: planKey });
+                    
+                    // Emit real-time socket.io event to all members of this org
+                    const AdminUser = require('../admin/adminAuth.model');
+                    const admins = await AdminUser.find({ organization: orgId }, '_id');
+                    for (const admin of admins) {
+                        emitOrgUpdate(io, orgId, admin._id.toString());
+                    }
                 }
                 break;
             }
@@ -114,6 +124,17 @@ async function handleWebhook(req, res) {
                     payment_method: payment.method || null,
                 });
                 auditLog.log('system', null, 'PAYMENT_CAPTURED', 'organization', orgId, { payment_id: payment.id, amount: payment.amount });
+                
+                // Emit real-time socket.io event
+                const AdminUser = require('../admin/adminAuth.model');
+                const admins = await AdminUser.find({ organization: orgId }, '_id');
+                for (const admin of admins) {
+                    emitPaymentSuccess(io, admin._id.toString(), { 
+                        subscriptionId: sub?.id || payment.id,
+                        planKey: sub?.notes?.plan,
+                        amount: payment.amount 
+                    });
+                }
                 break;
             }
 
@@ -132,6 +153,13 @@ async function handleWebhook(req, res) {
                     org.razorpay_subscription_id = null;
                     await org.save();
                     auditLog.log('system', null, 'SUBSCRIPTION_CANCELLED', 'organization', org._id);
+                    
+                    // Emit real-time socket.io event
+                    const AdminUser = require('../admin/adminAuth.model');
+                    const admins = await AdminUser.find({ organization: orgId }, '_id');
+                    for (const admin of admins) {
+                        emitOrgUpdate(io, orgId, admin._id.toString());
+                    }
                 }
                 break;
             }
@@ -155,6 +183,13 @@ async function handleWebhook(req, res) {
                     payment_method: payment.method || null,
                 });
                 auditLog.log('system', null, 'PAYMENT_CAPTURED', 'organization', orgId, { payment_id: payment.id, amount: payment.amount });
+                
+                // Emit real-time socket.io event
+                const AdminUser = require('../admin/adminAuth.model');
+                const admins = await AdminUser.find({ organization: orgId }, '_id');
+                for (const admin of admins) {
+                    emitSessionSync(io, admin._id.toString());
+                }
                 break;
             }
 

@@ -6,6 +6,8 @@ const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const { connectDB, logger } = require('./config/database');
 const { handleWebhook } = require('./src/modules/billing/billing.controller');
@@ -185,11 +187,62 @@ async function startServer () {
         const seedSuperAdmin = require('./src/utils/seedSuperAdmin');
         await seedSuperAdmin();
 
-        app.listen(PORT, () => {
-            logger.info(`🚀 Server running on http://localhost:${ PORT }`);
-            logger.info(`   Environment: ${ process.env.NODE_ENV || 'development' }`);
-            logger.info(`   Frontend:    ${ process.env.APP_BASE_URL || 'http://localhost:5173' }`);
-            logger.info(`   Health:      http://localhost:${ PORT }/api/health`);
+        // Create HTTP server and Socket.io instance
+        const server = http.createServer(app);
+        const io = new Server(server, {
+            cors: {
+                origin: allowedOrigins,
+                methods: ['GET', 'POST'],
+                credentials: true,
+            },
+            transports: ['websocket', 'polling'],
+        });
+
+        // Attach io to app for use in routes/controllers
+        app.set('io', io);
+
+        // Socket.io middleware for JWT authentication
+        io.use(async (socket, next) => {
+            try {
+                const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
+                if (!token) {
+                    return next(new Error('No token provided'));
+                }
+                // Token will be verified when joining rooms based on user role/org
+                socket.token = token;
+                next();
+            } catch (err) {
+                next(new Error('Authentication failed'));
+            }
+        });
+
+        // Socket.io connection handler
+        io.on('connection', (socket) => {
+            console.log(`[Socket.io] User connected: ${socket.id}`);
+
+            // Users join rooms by their role/org (sent from client)
+            socket.on('join-user-room', (data) => {
+                const { userId, role } = data;
+                socket.userId = userId;
+                socket.role = role;
+                socket.join(`user:${userId}`);
+                socket.join(`role:${role}`);
+                console.log(`[Socket.io] ${socket.id} joined user:${userId} and role:${role}`);
+            });
+
+            socket.on('disconnect', () => {
+                console.log(`[Socket.io] User disconnected: ${socket.id}`);
+            });
+        });
+
+        server.listen(PORT, () => {
+            console.log(`🚀 Server running on http://localhost:${PORT}`);
+            console.log(`   WebSocket: wss://campusync-api.unicodetechnolab.site`);
+            logger.info(`🚀 Server running on http://localhost:${PORT}`);
+            logger.info(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+            logger.info(`   Frontend:    ${process.env.APP_BASE_URL || 'http://localhost:5173'}`);
+            logger.info(`   Health:      http://localhost:${PORT}/api/health`);
+            logger.info(`   WebSocket:   wss://campusync-api.unicodetechnolab.site`);
         });
     } catch(err) {
         logger.error('Failed to start server:', err.message);
