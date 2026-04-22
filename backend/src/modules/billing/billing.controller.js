@@ -7,17 +7,17 @@ const auditLog = require('../../../utils/auditLog');
 const { logger } = require('../../../config/database');
 const { emitPaymentSuccess, emitOrgUpdate, emitSessionSync } = require('../../../utils/socketEvents');
 
-async function createSubscription(req, res) {
+async function createSubscription (req, res) {
     try {
         const { plan_key } = req.body;
-        if (!plan_key || !PLANS[plan_key]) return res.status(400).json({ error: 'Invalid plan. Allowed: starter, growth' });
+        if(!plan_key || !PLANS[ plan_key ]) return res.status(400).json({ error: 'Invalid plan. Allowed: starter, growth' });
 
-        const plan = PLANS[plan_key];
-        if (!plan.plan_id) return res.status(400).json({ error: 'This plan cannot be subscribed to directly. Contact support.' });
-        if (!razorpay) return res.status(503).json({ error: 'Payment service not configured.' });
+        const plan = PLANS[ plan_key ];
+        if(!plan.plan_id) return res.status(400).json({ error: 'This plan cannot be subscribed to directly. Contact support.' });
+        if(!razorpay) return res.status(503).json({ error: 'Payment service not configured.' });
 
         const org = await Organization.findById(req.actor.org);
-        if (!org) return res.status(404).json({ error: 'Organization not found.' });
+        if(!org) return res.status(404).json({ error: 'Organization not found.' });
 
         const subscription = await razorpay.subscriptions.create({
             plan_id: plan.plan_id,
@@ -35,17 +35,17 @@ async function createSubscription(req, res) {
 
         auditLog.log('admin', req.actor.id, 'SUBSCRIPTION_CREATED', 'organization', org._id, { plan: plan_key, subscription_id: subscription.id }, req);
         res.json({ subscription_id: subscription.id, razorpay_key: process.env.RAZORPAY_KEY_ID, plan: plan_key, amount_display: formatAmountDisplay(plan.price_monthly_paise) });
-    } catch (err) {
+    } catch(err) {
         logger.error('createSubscription error:', err.message);
         res.status(500).json({ error: 'Failed to create subscription.' });
     }
 }
 
-async function demoUpgrade(req, res) {
+async function demoUpgrade (req, res) {
     try {
         const { plan_key } = req.body;
         const org = await Organization.findById(req.actor.org);
-        if (!org) return res.status(404).json({ error: 'Org not found' });
+        if(!org) return res.status(404).json({ error: 'Org not found' });
 
         const limits = getPlanLimits(plan_key);
         org.plan = plan_key;
@@ -53,16 +53,16 @@ async function demoUpgrade(req, res) {
         await org.save();
 
         res.json({ message: 'Plan upgraded successfully in demo mode' });
-    } catch (err) {
+    } catch(err) {
         res.status(500).json({ error: 'Demo upgrade failed' });
     }
 }
 
-async function handleWebhook(req, res) {
+async function handleWebhook (req, res) {
     try {
-        const signature = req.headers['x-razorpay-signature'];
+        const signature = req.headers[ 'x-razorpay-signature' ];
         const rawBody = req.body;
-        if (!verifyWebhookSignature(rawBody, signature)) {
+        if(!verifyWebhookSignature(rawBody, signature)) {
             logger.warn('Razorpay webhook: Invalid signature');
             return res.status(400).json({ error: 'Invalid signature.' });
         }
@@ -70,20 +70,20 @@ async function handleWebhook(req, res) {
         const event = JSON.parse(rawBody.toString());
         const eventType = event.event;
         const payload = event.payload;
-        logger.info(`Razorpay webhook: ${eventType}`);
+        logger.info(`Razorpay webhook: ${ eventType }`);
 
         const io = req.app.get('io');
 
-        switch (eventType) {
+        switch(eventType) {
             case 'subscription.activated': {
                 const sub = payload.subscription?.entity;
-                if (!sub) break;
+                if(!sub) break;
                 const orgId = sub.notes?.organization_id;
                 const planKey = sub.notes?.plan;
-                if (!orgId) break;
+                if(!orgId) break;
 
                 const org = await Organization.findById(orgId);
-                if (org && planKey && PLANS[planKey]) {
+                if(org && planKey && PLANS[ planKey ]) {
                     const limits = getPlanLimits(planKey);
                     org.plan = planKey;
                     org.card_quota = limits.card_quota;
@@ -91,11 +91,11 @@ async function handleWebhook(req, res) {
                     org.razorpay_subscription_id = sub.id;
                     await org.save();
                     auditLog.log('system', null, 'SUBSCRIPTION_ACTIVATED', 'organization', org._id, { plan: planKey });
-                    
+
                     // Emit real-time socket.io event to all members of this org
                     const AdminUser = require('../admin/adminAuth.model');
                     const admins = await AdminUser.find({ organization: orgId }, '_id');
-                    for (const admin of admins) {
+                    for(const admin of admins) {
                         emitOrgUpdate(io, orgId, admin._id.toString());
                     }
                 }
@@ -105,12 +105,12 @@ async function handleWebhook(req, res) {
             case 'subscription.charged': {
                 const payment = payload.payment?.entity;
                 const sub = payload.subscription?.entity;
-                if (!payment) break;
+                if(!payment) break;
                 const orgId = sub?.notes?.organization_id || payment.notes?.organization_id;
-                if (!orgId) break;
+                if(!orgId) break;
 
                 const existing = await Payment.findOne({ razorpay_payment_id: payment.id });
-                if (existing) break;
+                if(existing) break;
 
                 await Payment.create({
                     organization_id: orgId,
@@ -124,15 +124,15 @@ async function handleWebhook(req, res) {
                     payment_method: payment.method || null,
                 });
                 auditLog.log('system', null, 'PAYMENT_CAPTURED', 'organization', orgId, { payment_id: payment.id, amount: payment.amount });
-                
+
                 // Emit real-time socket.io event
                 const AdminUser = require('../admin/adminAuth.model');
                 const admins = await AdminUser.find({ organization: orgId }, '_id');
-                for (const admin of admins) {
-                    emitPaymentSuccess(io, admin._id.toString(), { 
+                for(const admin of admins) {
+                    emitPaymentSuccess(io, admin._id.toString(), {
                         subscriptionId: sub?.id || payment.id,
                         planKey: sub?.notes?.plan,
-                        amount: payment.amount 
+                        amount: payment.amount
                     });
                 }
                 break;
@@ -140,12 +140,12 @@ async function handleWebhook(req, res) {
 
             case 'subscription.cancelled': {
                 const sub = payload.subscription?.entity;
-                if (!sub) break;
+                if(!sub) break;
                 const orgId = sub.notes?.organization_id;
-                if (!orgId) break;
+                if(!orgId) break;
 
                 const org = await Organization.findById(orgId);
-                if (org) {
+                if(org) {
                     const trialLimits = getPlanLimits('trial');
                     org.plan = 'trial';
                     org.card_quota = trialLimits.card_quota;
@@ -153,11 +153,11 @@ async function handleWebhook(req, res) {
                     org.razorpay_subscription_id = null;
                     await org.save();
                     auditLog.log('system', null, 'SUBSCRIPTION_CANCELLED', 'organization', org._id);
-                    
+
                     // Emit real-time socket.io event
                     const AdminUser = require('../admin/adminAuth.model');
                     const admins = await AdminUser.find({ organization: orgId }, '_id');
-                    for (const admin of admins) {
+                    for(const admin of admins) {
                         emitOrgUpdate(io, orgId, admin._id.toString());
                     }
                 }
@@ -166,12 +166,12 @@ async function handleWebhook(req, res) {
 
             case 'payment.captured': {
                 const payment = payload.payment?.entity;
-                if (!payment) break;
+                if(!payment) break;
                 const orgId = payment.notes?.organization_id;
-                if (!orgId) break;
+                if(!orgId) break;
 
                 const existing = await Payment.findOne({ razorpay_payment_id: payment.id });
-                if (existing) break;
+                if(existing) break;
 
                 await Payment.create({
                     organization_id: orgId,
@@ -183,11 +183,11 @@ async function handleWebhook(req, res) {
                     payment_method: payment.method || null,
                 });
                 auditLog.log('system', null, 'PAYMENT_CAPTURED', 'organization', orgId, { payment_id: payment.id, amount: payment.amount });
-                
+
                 // Emit real-time socket.io event
                 const AdminUser = require('../admin/adminAuth.model');
                 const admins = await AdminUser.find({ organization: orgId }, '_id');
-                for (const admin of admins) {
+                for(const admin of admins) {
                     emitSessionSync(io, admin._id.toString());
                 }
                 break;
@@ -196,13 +196,13 @@ async function handleWebhook(req, res) {
             case 'payment.failed': {
                 const payment = payload.payment?.entity;
                 const orgId = payment?.notes?.organization_id;
-                if (orgId) auditLog.log('system', null, 'PAYMENT_FAILED', 'organization', orgId, { payment_id: payment.id, error: payment.error_description });
+                if(orgId) auditLog.log('system', null, 'PAYMENT_FAILED', 'organization', orgId, { payment_id: payment.id, error: payment.error_description });
                 break;
             }
 
             case 'refund.created': {
                 const refund = payload.refund?.entity;
-                if (refund?.payment_id) {
+                if(refund?.payment_id) {
                     await Payment.findOneAndUpdate({ razorpay_payment_id: refund.payment_id }, { status: 'refunded' });
                     auditLog.log('system', null, 'REFUND_CREATED', null, null, { payment_id: refund.payment_id, amount: refund.amount });
                 }
@@ -210,17 +210,17 @@ async function handleWebhook(req, res) {
             }
 
             default:
-                logger.info(`Razorpay webhook: Unhandled event ${eventType}`);
+                logger.info(`Razorpay webhook: Unhandled event ${ eventType }`);
         }
 
         res.json({ status: 'ok' });
-    } catch (err) {
+    } catch(err) {
         logger.error('Webhook error:', err.message);
         res.status(500).json({ error: 'Webhook processing failed.' });
     }
 }
 
-async function getInvoices(req, res) {
+async function getInvoices (req, res) {
     try {
         const payments = await Payment.find({ organization_id: req.actor.org }).sort({ created_at: -1 }).lean();
         res.json({
@@ -235,19 +235,19 @@ async function getInvoices(req, res) {
                 date: p.created_at,
             })),
         });
-    } catch (err) {
+    } catch(err) {
         logger.error('getInvoices error:', err.message);
         res.status(500).json({ error: 'Failed to load invoices.' });
     }
 }
 
-async function recordPayment(req, res) {
+async function recordPayment (req, res) {
     try {
         const { plan_key, amount_paise, payment_id } = req.body;
-        if (!plan_key || !amount_paise) return res.status(400).json({ error: 'plan_key and amount_paise required.' });
+        if(!plan_key || !amount_paise) return res.status(400).json({ error: 'plan_key and amount_paise required.' });
 
         const org = await Organization.findById(req.actor.org);
-        if (!org) return res.status(404).json({ error: 'Org not found.' });
+        if(!org) return res.status(404).json({ error: 'Org not found.' });
 
         const limits = getPlanLimits(plan_key);
         org.plan = plan_key;
@@ -257,7 +257,7 @@ async function recordPayment(req, res) {
 
         const paymentRecord = await Payment.create({
             organization_id: org._id,
-            razorpay_payment_id: payment_id || `manual_${Date.now()}`,
+            razorpay_payment_id: payment_id || `manual_${ Date.now() }`,
             amount_paise,
             currency: 'INR',
             status: 'captured',
@@ -267,7 +267,7 @@ async function recordPayment(req, res) {
 
         auditLog.log('admin', req.actor.id, 'PAYMENT_MANUAL', 'organization', org._id, { plan: plan_key, amount: amount_paise }, req);
         res.json({ message: 'Payment recorded and plan upgraded.', payment: paymentRecord, plan: plan_key });
-    } catch (err) {
+    } catch(err) {
         logger.error('recordPayment error:', err.message);
         res.status(500).json({ error: 'Failed to record payment.' });
     }

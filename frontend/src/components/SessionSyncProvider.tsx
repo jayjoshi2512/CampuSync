@@ -19,7 +19,7 @@ function getMeEndpoint(role: string | null): MeEndpoint {
 }
 
 const SOCKET_URL =
-  process.env.REACT_APP_SOCKET_URL ||
+  import.meta.env.VITE_SOCKET_URL ||
   "https://www.campusync-api.unicodetechnolab.site";
 
 export default function SessionSyncProvider({

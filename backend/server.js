@@ -192,10 +192,10 @@ async function startServer () {
         const io = new Server(server, {
             cors: {
                 origin: allowedOrigins,
-                methods: ['GET', 'POST'],
+                methods: [ 'GET', 'POST' ],
                 credentials: true,
             },
-            transports: ['websocket', 'polling'],
+            transports: [ 'websocket', 'polling' ],
         });
 
         // Attach io to app for use in routes/controllers
@@ -204,44 +204,44 @@ async function startServer () {
         // Socket.io middleware for JWT authentication
         io.use(async (socket, next) => {
             try {
-                const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
-                if (!token) {
+                const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[ 1 ];
+                if(!token) {
                     return next(new Error('No token provided'));
                 }
                 // Token will be verified when joining rooms based on user role/org
                 socket.token = token;
                 next();
-            } catch (err) {
+            } catch(err) {
                 next(new Error('Authentication failed'));
             }
         });
 
         // Socket.io connection handler
         io.on('connection', (socket) => {
-            console.log(`[Socket.io] User connected: ${socket.id}`);
+            console.log(`[Socket.io] User connected: ${ socket.id }`);
 
             // Users join rooms by their role/org (sent from client)
             socket.on('join-user-room', (data) => {
                 const { userId, role } = data;
                 socket.userId = userId;
                 socket.role = role;
-                socket.join(`user:${userId}`);
-                socket.join(`role:${role}`);
-                console.log(`[Socket.io] ${socket.id} joined user:${userId} and role:${role}`);
+                socket.join(`user:${ userId }`);
+                socket.join(`role:${ role }`);
+                console.log(`[Socket.io] ${ socket.id } joined user:${ userId } and role:${ role }`);
             });
 
             socket.on('disconnect', () => {
-                console.log(`[Socket.io] User disconnected: ${socket.id}`);
+                console.log(`[Socket.io] User disconnected: ${ socket.id }`);
             });
         });
 
         server.listen(PORT, () => {
-            console.log(`🚀 Server running on http://localhost:${PORT}`);
+            console.log(`🚀 Server running on http://localhost:${ PORT }`);
             console.log(`   WebSocket: wss://campusync-api.unicodetechnolab.site`);
-            logger.info(`🚀 Server running on http://localhost:${PORT}`);
-            logger.info(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-            logger.info(`   Frontend:    ${process.env.APP_BASE_URL || 'http://localhost:5173'}`);
-            logger.info(`   Health:      http://localhost:${PORT}/api/health`);
+            logger.info(`🚀 Server running on http://localhost:${ PORT }`);
+            logger.info(`   Environment: ${ process.env.NODE_ENV || 'development' }`);
+            logger.info(`   Frontend:    ${ process.env.APP_BASE_URL || 'http://localhost:5173' }`);
+            logger.info(`   Health:      http://localhost:${ PORT }/api/health`);
             logger.info(`   WebSocket:   wss://campusync-api.unicodetechnolab.site`);
         });
     } catch(err) {

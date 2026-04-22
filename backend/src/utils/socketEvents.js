@@ -4,8 +4,8 @@
  */
 
 const emitSessionSync = (io, userId) => {
-    if (!io) return;
-    io.to(`user:${userId}`).emit('session:sync-required', {
+    if(!io) return;
+    io.to(`user:${ userId }`).emit('session:sync-required', {
         type: 'session',
         timestamp: new Date().toISOString(),
         message: 'Session data updated. Refetch /me endpoint.',
@@ -13,8 +13,8 @@ const emitSessionSync = (io, userId) => {
 };
 
 const emitOrgUpdate = (io, orgId, userId) => {
-    if (!io) return;
-    io.to(`user:${userId}`).emit('org:updated', {
+    if(!io) return;
+    io.to(`user:${ userId }`).emit('org:updated', {
         type: 'organization',
         orgId,
         timestamp: new Date().toISOString(),
@@ -23,21 +23,21 @@ const emitOrgUpdate = (io, orgId, userId) => {
 };
 
 const emitPaymentSuccess = (io, userId, paymentData) => {
-    if (!io) return;
-    io.to(`user:${userId}`).emit('payment:success', {
+    if(!io) return;
+    io.to(`user:${ userId }`).emit('payment:success', {
         type: 'payment',
         status: 'success',
         subscriptionId: paymentData.subscriptionId,
         planKey: paymentData.planKey,
         amount: paymentData.amount,
         timestamp: new Date().toISOString(),
-        message: `Payment successful! Plan upgraded to ${paymentData.planKey}`,
+        message: `Payment successful! Plan upgraded to ${ paymentData.planKey }`,
     });
 };
 
 const emitNotification = (io, userId, notificationData) => {
-    if (!io) return;
-    io.to(`user:${userId}`).emit('notification:new', {
+    if(!io) return;
+    io.to(`user:${ userId }`).emit('notification:new', {
         type: 'notification',
         notificationId: notificationData.notificationId,
         title: notificationData.title,
@@ -48,15 +48,15 @@ const emitNotification = (io, userId, notificationData) => {
 };
 
 const emitBroadcast = (io, role, eventName, data) => {
-    if (!io) return;
-    io.to(`role:${role}`).emit(eventName, {
+    if(!io) return;
+    io.to(`role:${ role }`).emit(eventName, {
         ...data,
         timestamp: new Date().toISOString(),
     });
 };
 
 const emitToAllUsers = (io, eventName, data) => {
-    if (!io) return;
+    if(!io) return;
     io.emit(eventName, {
         ...data,
         timestamp: new Date().toISOString(),
