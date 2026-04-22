@@ -9,7 +9,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import AuthBrandPanel from "@/components/auth/AuthBrandPanel";
 import AuthBackButton from "@/components/auth/AuthBackButton";
 
-type Org = { id: number; name: string; slug: string };
+type Org = { _id: string; name: string; slug: string };
 
 export default function AlumniRegisterPage() {
   const [orgs, setOrgs] = useState<Org[]>([]);
@@ -75,13 +75,14 @@ export default function AlumniRegisterPage() {
   }, [toast]);
 
   const sendOtp = async () => {
-    if (!form.email || !form.name)
-      return toast("Name and email are required", "error");
+    const email = form.email.trim();
+    const name = form.name.trim();
+    if (!email || !name) return toast("Name and email are required", "error");
     setLoading(true);
     try {
       await api.post("/register/alumni/send-otp", {
-        email: form.email,
-        name: form.name,
+        email,
+        name,
       });
       setOtpSent(true);
       toast("Verification code sent to your email", "success");
@@ -94,10 +95,11 @@ export default function AlumniRegisterPage() {
 
   const verifyOtp = async () => {
     if (!form.otp) return toast("Enter OTP", "error");
+    const email = form.email.trim();
     setLoading(true);
     try {
       await api.post("/register/alumni/verify-otp", {
-        email: form.email,
+        email,
         otp: form.otp,
       });
       setVerified(true);
@@ -112,12 +114,14 @@ export default function AlumniRegisterPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!verified) return toast("Please verify your email first", "error");
+    const name = form.name.trim();
+    const email = form.email.trim();
     setLoading(true);
     try {
       await api.post("/register/alumni/submit", {
-        organization_id: Number(form.organization_id),
-        name: form.name,
-        email: form.email,
+        organization_id: form.organization_id,
+        name,
+        email,
         branch: form.branch || null,
         batch_year: form.batch_year ? Number(form.batch_year) : null,
         linkedin_url: form.linkedin_url || null,
@@ -236,7 +240,7 @@ export default function AlumniRegisterPage() {
               >
                 <option value="">Select your institution</option>
                 {orgs.map((o) => (
-                  <option key={o.id} value={o.id}>
+                  <option key={o._id} value={o._id}>
                     {o.name}
                   </option>
                 ))}
