@@ -196,6 +196,13 @@ async function uploadMemory (req, res) {
                     uploaded_by: req.actor.id?.toString() || null,
                     timestamp: new Date().toISOString(),
                 });
+                io.to(`user:${ u._id }`).emit('notification:new', {
+                    type: 'new_memory',
+                    title: 'New memory shared!',
+                    message: `${ req.actor.name || 'Someone' } uploaded a new ${ mediaType }.`,
+                    action_url: '/portal',
+                    timestamp: new Date().toISOString(),
+                });
             }
         }
 
@@ -211,6 +218,13 @@ async function uploadMemory (req, res) {
                     memory_id: memory._id.toString(),
                     organization_id: org._id.toString(),
                     uploaded_by: req.actor.id?.toString() || null,
+                    timestamp: new Date().toISOString(),
+                });
+                io.to(`user:${ admin._id }`).emit('notification:new', {
+                    type: 'new_memory',
+                    title: 'New memory activity',
+                    message: `${ req.actor.name || 'A user' } uploaded a new ${ mediaType }.`,
+                    action_url: '/admin/dashboard',
                     timestamp: new Date().toISOString(),
                 });
             }

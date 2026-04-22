@@ -130,6 +130,24 @@ export default function NotificationBell() {
   }, [token, isDemo]);
 
   useEffect(() => {
+    const handleNotificationsUpdated = () => {
+      void loadNotifications();
+    };
+
+    window.addEventListener(
+      "campusync:notifications-updated",
+      handleNotificationsUpdated as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "campusync:notifications-updated",
+        handleNotificationsUpdated as EventListener,
+      );
+    };
+  }, [token, isDemo]);
+
+  useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node))
         setOpen(false);
@@ -205,7 +223,10 @@ export default function NotificationBell() {
           <div className="max-h-[360px] overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-8 text-center flex flex-col items-center">
-                <Bell size={24} className="text-[var(--color-text-muted)] mb-2" />
+                <Bell
+                  size={24}
+                  className="text-[var(--color-text-muted)] mb-2"
+                />
                 <p className="text-[var(--color-text-muted)] text-[13px] m-0">
                   No notifications yet
                 </p>
@@ -218,7 +239,9 @@ export default function NotificationBell() {
                     key={n.id}
                     className="py-[12px] px-[16px] border-b border-[var(--color-border-subtle)] transition-colors duration-150 last:border-b-0"
                     style={{
-                      background: n.is_read ? "transparent" : "var(--color-brand-muted)",
+                      background: n.is_read
+                        ? "transparent"
+                        : "var(--color-brand-muted)",
                       cursor: n.action_url ? "pointer" : "default",
                     }}
                     onClick={() => {
@@ -230,7 +253,10 @@ export default function NotificationBell() {
                   >
                     <div className="flex gap-[10px] items-start">
                       <div className="w-7 h-7 rounded-lg bg-[--color-bg-tertiary] flex items-center justify-center shrink-0">
-                        <IconComp size={14} className="text-[var(--color-brand)]" />
+                        <IconComp
+                          size={14}
+                          className="text-[var(--color-brand)]"
+                        />
                       </div>
                       <div className="flex-[1] min-w-0">
                         <p className="text-[13px] font-semibold text-[var(--color-text-primary)] mb-[2px] mt-0">

@@ -115,6 +115,9 @@ export default function SessionSyncProvider({
     // Listen for new notifications
     socketRef.current.on("notification:new", (data: unknown) => {
       console.log("[Socket.io] New notification:", data);
+      window.dispatchEvent(
+        new CustomEvent("campusync:notifications-updated", { detail: data }),
+      );
       const payload =
         data && typeof data === "object"
           ? (data as Record<string, unknown>)
