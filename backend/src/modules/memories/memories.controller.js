@@ -180,10 +180,22 @@ async function uploadMemory (req, res) {
         await org.save();
 
         const orgUsers = await User.find({ organization_id: org._id, is_active: true }).select('_id').lean();
+        const io = req.app.get('io');
         for(const u of orgUsers) {
             if(u._id.toString() !== req.actor.id?.toString()) {
                 createUserNotification(u._id, { type: 'new_memory', title: 'New memory shared!', body: `${ req.actor.name || 'Someone' } uploaded a new ${ mediaType }.`, action_url: '/portal' })
                     .catch(e => logger.error(`Notification creation failed for user ${ u._id }:`, e.message));
+            }
+
+            if(io) {
+                io.to(`user:${ u._id }`).emit('memory:updated', {
+                    type: 'new_memory',
+                    action: 'created',
+                    memory_id: memory._id.toString(),
+                    organization_id: org._id.toString(),
+                    uploaded_by: req.actor.id?.toString() || null,
+                    timestamp: new Date().toISOString(),
+                });
             }
         }
 
@@ -191,6 +203,17 @@ async function uploadMemory (req, res) {
         for(const admin of orgAdmins) {
             const note = addTransientNotification({ role: 'admin', id: admin._id }, { type: 'new_memory', title: 'New memory activity', body: `${ req.actor.name || 'A user' } uploaded a new ${ mediaType }.`, action_url: '/admin/dashboard' });
             emitNotificationToActor({ role: 'admin', id: admin._id }, note);
+
+            if(io) {
+                io.to(`user:${ admin._id }`).emit('memory:updated', {
+                    type: 'new_memory',
+                    action: 'created',
+                    memory_id: memory._id.toString(),
+                    organization_id: org._id.toString(),
+                    uploaded_by: req.actor.id?.toString() || null,
+                    timestamp: new Date().toISOString(),
+                });
+            }
         }
 
         const superAdmins = await SuperAdmin.find({ is_active: true }).select('_id').lean();
@@ -213,8 +236,37 @@ async function deleteMemory (req, res) {
         if(memory.uploaded_by?.toString() !== req.actor.id?.toString()) {
             return res.status(403).json({ error: 'You can only delete your own memories.' });
         }
+        const io = req.app.get('io');
         memory.is_active = false;
         await memory.save();
+
+        if(io) {
+            const orgUsers = await User.find({ organization_id: memory.organization_id, is_active: true }).select('_id').lean();
+            const orgAdmins = await Admin.find({ organization_id: memory.organization_id, is_active: true }).select('_id').lean();
+
+            for(const user of orgUsers) {
+                io.to(`user:${ user._id }`).emit('memory:updated', {
+                    type: 'memory',
+                    action: 'deleted',
+                    memory_id: memory._id.toString(),
+                    organization_id: memory.organization_id?.toString() || null,
+                    deleted_by: req.actor.id?.toString() || null,
+                    timestamp: new Date().toISOString(),
+                });
+            }
+
+            for(const admin of orgAdmins) {
+                io.to(`user:${ admin._id }`).emit('memory:updated', {
+                    type: 'memory',
+                    action: 'deleted',
+                    memory_id: memory._id.toString(),
+                    organization_id: memory.organization_id?.toString() || null,
+                    deleted_by: req.actor.id?.toString() || null,
+                    timestamp: new Date().toISOString(),
+                });
+            }
+        }
+
         auditLog.log('user', req.actor.id, 'MEMORY_DELETED', 'memory', memory._id, null, req);
         res.json({ message: 'Memory deleted.' });
     } catch(err) {

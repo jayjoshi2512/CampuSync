@@ -104,10 +104,26 @@ export default function SessionSyncProvider({
       syncSession();
     });
 
+    // Listen for memory updates and notify memory views to refresh immediately.
+    socketRef.current.on("memory:updated", (data: unknown) => {
+      console.log("[Socket.io] Memory updated:", data);
+      window.dispatchEvent(
+        new CustomEvent("campusync:memory-updated", { detail: data }),
+      );
+    });
+
     // Listen for new notifications
     socketRef.current.on("notification:new", (data: unknown) => {
       console.log("[Socket.io] New notification:", data);
-      // Show toast or notification badge
+      const payload =
+        data && typeof data === "object"
+          ? (data as Record<string, unknown>)
+          : null;
+      if (payload?.type === "new_memory") {
+        window.dispatchEvent(
+          new CustomEvent("campusync:memory-updated", { detail: data }),
+        );
+      }
     });
 
     // Handle connection errors

@@ -211,6 +211,28 @@ export function useMemories(isDemo?: boolean) {
     }, 10000); // 10 seconds
     return () => clearInterval(interval);
   }, [isDemo, filters]);
+
+  // Socket-driven realtime refresh signal from SessionSyncProvider.
+  useEffect(() => {
+    if (isDemo) return;
+
+    const handleMemoryUpdated = () => {
+      void fetchMemories(true);
+    };
+
+    window.addEventListener(
+      "campusync:memory-updated",
+      handleMemoryUpdated as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "campusync:memory-updated",
+        handleMemoryUpdated as EventListener,
+      );
+    };
+  }, [isDemo, fetchMemories]);
+
   const setFiltersAndFetch = useCallback((newFilters: Record<string, any>) => {
     setFilters(newFilters);
     cursor.current = null;
