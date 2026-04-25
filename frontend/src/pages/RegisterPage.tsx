@@ -60,7 +60,10 @@ export default function RegisterPage() {
         contact_name: form.contact_name,
       });
       setStep("verify_otp");
-      toast("Verification code sent to your email!", "success");
+      toast(
+        "Verification code sent to your email! Check your spam/junk folder too.",
+        "success",
+      );
     } catch (err: any) {
       toast(err.response?.data?.error || "Failed to send OTP", "error");
     } finally {

@@ -85,7 +85,10 @@ export default function AlumniRegisterPage() {
         name,
       });
       setOtpSent(true);
-      toast("Verification code sent to your email", "success");
+      toast(
+        "Verification code sent to your email. Check your spam/junk folder too.",
+        "success",
+      );
     } catch (err: any) {
       toast(err.response?.data?.error || "Failed to send OTP", "error");
     } finally {
