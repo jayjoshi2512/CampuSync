@@ -43,6 +43,7 @@ function toOrigin (value) {
 
 const allowedOrigins = [ ...new Set([
     process.env.APP_BASE_URL || 'http://localhost:5173',
+    'https://campusync-six.vercel.app',
     'http://localhost:5173',
     'http://localhost:5174',
 ].map(toOrigin).filter(Boolean)) ];
