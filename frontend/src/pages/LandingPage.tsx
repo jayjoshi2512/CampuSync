@@ -3,7 +3,6 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   LandingNavbar,
   LandingHero,
-  LandingStats,
   LandingFeatures,
   LandingHowItWorks,
   LandingCTA,
@@ -23,7 +22,6 @@ export default function LandingPage() {
     >
       <LandingNavbar isCompactLayout={isCompactLayout} />
       <LandingHero isCompactLayout={isCompactLayout} />
-      <LandingStats isCompactLayout={isCompactLayout} />
       <LandingFeatures isCompactLayout={isCompactLayout} />
       <LandingHowItWorks isCompactLayout={isCompactLayout} />
       <LandingCTA isCompactLayout={isCompactLayout} />

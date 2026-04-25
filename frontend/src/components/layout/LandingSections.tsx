@@ -1,6 +1,6 @@
 // frontend/src/components/layout/LandingSections.tsx
-import { useState, useEffect, useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import ThemeToggle from "@/components/layout/ThemeToggle";
 import {
@@ -18,7 +18,6 @@ import {
   Building2,
   QrCode,
   Smartphone,
-  Star,
   ChevronRight,
   Mail,
   Github,
@@ -86,13 +85,7 @@ export const features = [
   },
 ];
 
-// ─── Stats data ───────────────────────────────────────────────────────────────
-const stats = [
-  { value: 50, suffix: "+", label: "Institutions", icon: Building2 },
-  { value: 12000, suffix: "+", label: "Students Onboarded", icon: Users },
-  { value: 48000, suffix: "+", label: "Cards Issued", icon: QrCode },
-  { value: 99.9, suffix: "%", label: "Uptime SLA", icon: Star, decimals: 1 },
-];
+
 
 // ─── How it works steps ────────────────────────────────────────────────────────
 const steps = [
@@ -119,41 +112,7 @@ const steps = [
   },
 ];
 
-// ─── Animated counter ─────────────────────────────────────────────────────────
-function AnimatedCounter({
-  value,
-  suffix,
-  decimals = 0,
-  duration = 2000,
-}: {
-  value: number;
-  suffix: string;
-  decimals?: number;
-  duration?: number;
-}) {
-  const [display, setDisplay] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
 
-  useEffect(() => {
-    if (!inView) return;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(parseFloat((eased * value).toFixed(decimals)));
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [inView, value, duration, decimals]);
-
-  return (
-    <span ref={ref}>
-      {decimals > 0 ? display.toFixed(decimals) : Math.floor(display).toLocaleString()}
-      {suffix}
-    </span>
-  );
-}
 
 // ─── Navbar ───────────────────────────────────────────────────────────────────
 export function LandingNavbar({
@@ -735,7 +694,7 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
             (e.currentTarget as HTMLElement).style.color = "var(--color-text-secondary)";
           }}
         >
-          Access Portal
+          View Demo
         </button>
         <a
           href={APP_DOWNLOAD_URL}
@@ -836,86 +795,7 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
   );
 }
 
-// ─── Stats strip ──────────────────────────────────────────────────────────────
-export function LandingStats({ isCompactLayout }: { isCompactLayout: boolean }) {
-  return (
-    <section
-      style={{
-        padding: isCompactLayout ? "48px 20px" : "56px 48px",
-        borderTop: "1px solid var(--color-border-subtle)",
-        borderBottom: "1px solid var(--color-border-subtle)",
-        background: "var(--color-bg-secondary)",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 1100,
-          margin: "0 auto",
-          display: "grid",
-          gridTemplateColumns: isCompactLayout
-            ? "repeat(2, 1fr)"
-            : "repeat(4, 1fr)",
-          gap: isCompactLayout ? 28 : 0,
-        }}
-      >
-        {stats.map((stat, i) => {
-          const Icon = stat.icon;
-          return (
-            <motion.div
-              key={stat.label}
-              {...fadeUp}
-              transition={{ duration: 0.5, delay: i * 0.07 }}
-              style={{
-                textAlign: "center",
-                padding: "0 24px",
-                borderRight:
-                  !isCompactLayout && i < stats.length - 1
-                    ? "1px solid var(--color-border-subtle)"
-                    : "none",
-              }}
-            >
-              <Icon
-                size={20}
-                style={{
-                  color: "var(--color-brand)",
-                  margin: "0 auto 10px",
-                  display: "block",
-                }}
-              />
-              <div
-                style={{
-                  fontSize: isCompactLayout ? 32 : 40,
-                  fontWeight: 900,
-                  fontFamily: "var(--font-display)",
-                  color: "var(--color-text-primary)",
-                  letterSpacing: -1,
-                  lineHeight: 1,
-                  marginBottom: 6,
-                }}
-              >
-                <AnimatedCounter
-                  value={stat.value}
-                  suffix={stat.suffix}
-                  decimals={stat.decimals}
-                />
-              </div>
-              <p
-                style={{
-                  fontSize: 13,
-                  color: "var(--color-text-muted)",
-                  fontWeight: 500,
-                  margin: 0,
-                }}
-              >
-                {stat.label}
-              </p>
-            </motion.div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
+
 
 // ─── Features ─────────────────────────────────────────────────────────────────
 export function LandingFeatures({
