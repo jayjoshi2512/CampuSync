@@ -53,6 +53,7 @@ export default function SessionSyncProvider({
     // This is far more reliable behind Nginx / Cloudflare reverse proxies because
     // the HTTP-based polling handshake succeeds before the WS upgrade is attempted.
     socketRef.current = io(SOCKET_URL, {
+      path: '/api/socket.io',
       auth: { token },
       reconnection: true,
       reconnectionDelay: 2000,

@@ -232,6 +232,7 @@ async function startServer () {
         // Create HTTP server and Socket.io instance
         const server = http.createServer(app);
         const io = new Server(server, {
+            path: '/api/socket.io',
             cors: {
                 origin: allowedOrigins,
                 methods: [ 'GET', 'POST' ],
