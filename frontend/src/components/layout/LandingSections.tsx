@@ -11,7 +11,7 @@ import {
   Camera,
 } from "lucide-react";
 
-const APP_DOWNLOAD_URL = "/downloads/app-release.apk";
+const APP_DOWNLOAD_URL = "/downloads/CampuSync.apk";
 
 export const fadeUp = {
   initial: { opacity: 0, y: 20 },
@@ -99,6 +99,7 @@ export function LandingNavbar({
         {!isCompactLayout && (
           <a
             href={APP_DOWNLOAD_URL}
+            download="CampuSync.apk"
             style={{
               padding: "8px 18px",
               borderRadius: 8,
@@ -183,23 +184,6 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
           pointerEvents: "none",
         }}
       />
-      <motion.div {...fadeUp} transition={{ duration: 0.5 }}>
-        <span
-          style={{
-            display: "inline-block",
-            padding: "6px 16px",
-            borderRadius: 20,
-            border: "1px solid var(--color-border-default)",
-            background: "var(--color-bg-secondary)",
-            fontSize: 12,
-            color: "var(--color-text-muted)",
-            fontWeight: 500,
-            marginBottom: 24,
-          }}
-        >
-          Trusted by 50+ institutions across India
-        </span>
-      </motion.div>
       <motion.h1
         {...fadeUp}
         transition={{ duration: 0.6, delay: 0.1 }}
@@ -252,6 +236,7 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
       >
         <a
           href={APP_DOWNLOAD_URL}
+          download="CampuSync.apk"
           style={{
             padding: "14px 28px",
             borderRadius: 10,
@@ -317,67 +302,6 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
           again.
         </motion.div>
       )}
-
-      <motion.div
-        {...fadeUp}
-        transition={{ duration: 0.5, delay: 0.4 }}
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          marginTop: 64,
-          paddingInline: 16,
-        }}
-      >
-        <div
-          style={{
-            background:
-              "color-mix(in srgb, var(--color-brand) 10%, transparent)",
-            border:
-              "1px solid color-mix(in srgb, var(--color-brand) 30%, transparent)",
-            borderRadius: 12,
-            padding: "16px 24px",
-            maxWidth: 600,
-            textAlign: "left",
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              fontSize: 13,
-              color: "var(--color-text-primary)",
-              fontWeight: 600,
-            }}
-          >
-            🚀 Demo Environment Notes:
-          </p>
-          <ul
-            style={{
-              margin: 0,
-              paddingLeft: 20,
-              fontSize: 13,
-              color: "var(--color-text-muted)",
-              lineHeight: 1.5,
-            }}
-          >
-            <li>
-              <strong>Frontend:</strong> Vercel | <strong>Backend:</strong>{" "}
-              Render | <strong>Emails:</strong> Twilio SendGrid
-            </li>
-            <li>
-              <strong>Note:</strong> Since the backend is hosted on a free
-              Render instance, it sleeps after inactivity.{" "}
-              <strong>
-                Your first request (like login or loading data) may take 50+
-                seconds or fail.
-              </strong>{" "}
-              If it fails, please wait a minute and try again!
-            </li>
-          </ul>
-        </div>
-      </motion.div>
     </section>
   );
 }
