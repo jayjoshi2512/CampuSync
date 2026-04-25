@@ -133,8 +133,11 @@ export default function UserPortal() {
     }
   }, [actor?.role, navigate]);
 
+  // Sync is now driven by Socket.IO session:sync-required events.
+  // No manual polling interval needed — the socket handles live updates.
   useEffect(() => {
     if (isDemo || !actor) return;
+    // Initial fetch only
     api.get("/user/me", { _silent: true } as any)
       .then(res => {
         if (res.data?.actor) {
@@ -143,19 +146,6 @@ export default function UserPortal() {
         }
       })
       .catch(() => {});
-    // Poll every 30s to pick up plan changes without needing a refresh
-    const interval = setInterval(() => {
-      if (!useAuthStore.getState().isAuthenticated) return;
-      api.get("/user/me", { _silent: true } as any)
-        .then(res => {
-          if (res.data?.actor) {
-            const currentToken = useAuthStore.getState().token;
-            setAuth(currentToken!, res.data.actor);
-          }
-        })
-        .catch(() => {});
-    }, 30000);
-    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actor?.id]);
 
@@ -223,6 +213,32 @@ export default function UserPortal() {
       })
       .catch(() => {});
   }, []);
+
+  // Real-time: react to memory-updated and reaction-updated socket events
+  useEffect(() => {
+    const onMemoryUpdated = () => {
+      if (tab === "memories") fetchMemories(true);
+    };
+    const onReactionUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        memory_id: string;
+        reaction_counts: Record<string, number>;
+        updated_by?: string;
+      } | null;
+      if (!detail?.memory_id) return;
+      // Patch reaction counts in-place via the memories hook
+      // (hook exposes memories array — we let the memory-updated re-fetch handle it;
+      // the server already returns fresh counts on the next poll. For instant patching,
+      // dispatch a memory-updated event which triggers the above handler.)
+      window.dispatchEvent(new CustomEvent("campusync:memory-updated", { detail }));
+    };
+    window.addEventListener("campusync:memory-updated", onMemoryUpdated);
+    window.addEventListener("campusync:reaction-updated", onReactionUpdated);
+    return () => {
+      window.removeEventListener("campusync:memory-updated", onMemoryUpdated);
+      window.removeEventListener("campusync:reaction-updated", onReactionUpdated);
+    };
+  }, [fetchMemories, tab]);
 
   useEffect(() => {
     if (isDemo) {

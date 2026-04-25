@@ -241,6 +241,14 @@ async function addStudent (req, res) {
             template_id: org?.selected_card_template || 'tmpl_midnight',
             front_data_json: { name: user.name, roll: user.roll_number, branch: user.branch, batch: user.batch_year, org_name: org?.name, org_logo: org?.logo_url },
         } ]);
+        // Notify org members in real-time
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`org:${ orgId }`).emit('cohort:student-added', {
+                user: { id: user._id, name: user.name, email: user.email, role: user.role },
+                timestamp: new Date().toISOString(),
+            });
+        }
         res.status(201).json({ message: 'Student added successfully.', user });
     } catch(err) {
         logger.error('addStudent error:', err.message);
@@ -282,6 +290,16 @@ async function editStudent (req, res) {
             await card.save();
         }
 
+        // Notify org + the specific user to sync session
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`org:${ orgId }`).emit('cohort:student-updated', {
+                user: { id: user._id, name: user.name, email: user.email, role: user.role },
+                timestamp: new Date().toISOString(),
+            });
+            // Force the affected user to refresh their session data
+            io.to(`user:${ user._id }`).emit('session:sync-required', { reason: 'student_updated', timestamp: new Date().toISOString() });
+        }
         res.json({ message: 'Student updated successfully.', user });
     } catch(err) {
         logger.error('editStudent error:', err.message);
@@ -386,6 +404,15 @@ async function updateSettings (req, res) {
 
         await org.save();
         auditLog.log('admin', req.actor.id, 'ORG_SETTINGS_UPDATED', 'organization', org._id, req.body, req);
+
+        // Notify all org members to refresh org data
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`org:${ req.actor.org }`).emit('org:updated', {
+                organization_id: org._id.toString(),
+                timestamp: new Date().toISOString(),
+            });
+        }
         res.json({ message: 'Settings updated.', organization: org });
     } catch(err) {
         logger.error('updateSettings error:', err.message);
@@ -529,6 +556,15 @@ async function flagMemory (req, res) {
         if(!memory) return res.status(404).json({ error: 'Memory not found.' });
         memory.is_flagged = !memory.is_flagged;
         await memory.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`org:${ req.actor.org }`).emit('memory:updated', {
+                action: memory.is_flagged ? 'flagged' : 'unflagged',
+                memory_id: memory._id.toString(),
+                timestamp: new Date().toISOString(),
+            });
+        }
         res.json({ message: `Memory ${ memory.is_flagged ? 'flagged' : 'unflagged' }.`, is_flagged: memory.is_flagged });
     } catch(err) {
         logger.error('flagMemory error:', err.message);
@@ -546,6 +582,16 @@ async function deleteMemory (req, res) {
         memory.is_active = false;
         await memory.save();
         auditLog.log('admin', req.actor.id, 'MEMORY_DELETED', 'memory', memory._id, null, req);
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`org:${ req.actor.org }`).emit('memory:updated', {
+                action: 'deleted',
+                memory_id: memory._id.toString(),
+                deleted_by: req.actor.id,
+                timestamp: new Date().toISOString(),
+            });
+        }
         res.json({ message: 'Memory deleted.' });
     } catch(err) {
         logger.error('deleteMemory error:', err.message);
@@ -561,10 +607,20 @@ async function announce (req, res) {
         const { subject, body } = req.body;
         const org = await Organization.findById(req.actor.org);
         const users = await User.find({ organization_id: req.actor.org, is_active: true });
+        const io = req.app.get('io');
         let sent = 0;
         for(const user of users) {
             await Notification.create({ user_id: user._id, type: 'announcement', title: subject, body });
             sendMail(user.email, `${ subject } — ${ org.name }`, announcementEmail(user.name, org.name, subject, body)).catch(() => {});
+            // Push notification badge update live
+            if (io) {
+                io.to(`user:${ user._id }`).emit('notification:new', {
+                    type: 'announcement',
+                    title: subject,
+                    message: body,
+                    timestamp: new Date().toISOString(),
+                });
+            }
             sent++;
         }
         auditLog.log('admin', req.actor.id, 'ANNOUNCEMENT_SENT', 'organization', org._id, { subject, recipients: sent }, req);
@@ -615,6 +671,15 @@ async function softDeleteStudent (req, res) {
         user.is_active = false;
         await user.save();
         auditLog.log('admin', req.actor.id, 'USER_SOFT_DELETED', 'user', user._id, { name: user.name }, req);
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`org:${ req.actor.org }`).emit('cohort:student-removed', {
+                user_id: user._id.toString(),
+                name: user.name,
+                timestamp: new Date().toISOString(),
+            });
+        }
         res.json({ message: `${ user.name } has been removed.` });
     } catch(err) {
         logger.error('softDeleteStudent error:', err.message);
@@ -696,6 +761,18 @@ async function approveAlumniRequest (req, res) {
 
         createUserNotification(user._id, { type: 'approval', title: 'Alumni request approved', body: 'Your alumni access is now active.', action_url: '/alumni' }).catch(() => {});
         auditLog.log('admin', req.actor.id, 'ALUMNI_REQUEST_APPROVED', 'alumni_request', requestRow._id, { user_id: user._id }, req);
+
+        const io = req.app.get('io');
+        if (io) {
+            // Force the user to refresh — their role just changed to alumni
+            io.to(`user:${ user._id }`).emit('session:sync-required', { reason: 'alumni_approved', timestamp: new Date().toISOString() });
+            io.to(`org:${ req.actor.org }`).emit('alumni:request-updated', {
+                request_id: requestRow._id.toString(),
+                status: 'approved',
+                user_id: user._id.toString(),
+                timestamp: new Date().toISOString(),
+            });
+        }
         res.json({ message: 'Alumni request approved.', user_id: user._id });
     } catch(err) {
         logger.error('approveAlumniRequest error:', err.message);
@@ -723,6 +800,24 @@ async function rejectAlumniRequest (req, res) {
         }
 
         auditLog.log('admin', req.actor.id, 'ALUMNI_REQUEST_REJECTED', 'alumni_request', requestRow._id, { reason: requestRow.rejection_reason }, req);
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`org:${ req.actor.org }`).emit('alumni:request-updated', {
+                request_id: requestRow._id.toString(),
+                status: 'rejected',
+                user_id: requestRow.user_id?.toString() || null,
+                timestamp: new Date().toISOString(),
+            });
+            if (requestRow.user_id) {
+                io.to(`user:${ requestRow.user_id }`).emit('notification:new', {
+                    type: 'system',
+                    title: 'Alumni request update',
+                    message: requestRow.rejection_reason,
+                    timestamp: new Date().toISOString(),
+                });
+            }
+        }
         res.json({ message: 'Alumni request rejected.' });
     } catch(err) {
         logger.error('rejectAlumniRequest error:', err.message);

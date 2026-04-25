@@ -30,9 +30,9 @@ export default function SessionSyncProvider({
   const token = useAuthStore((state) => state.token);
   const role = useAuthStore((state) => state.role);
   const userId = useAuthStore((state) => state.actor?.id);
+  const orgId = useAuthStore((state) => state.actor?.organization?.id);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const socketRef = useRef<Socket | null>(null);
-  // Track whether all reconnection attempts have been exhausted
   const socketFailedRef = useRef(false);
 
   useEffect(() => {
@@ -43,111 +43,131 @@ export default function SessionSyncProvider({
     }
 
     const endpoint = getMeEndpoint(role);
-    if (!endpoint) {
-      return;
-    }
+    if (!endpoint) return;
 
     socketFailedRef.current = false;
 
-    // Use polling first, then upgrade to websocket.
-    // This is far more reliable behind Nginx / Cloudflare reverse proxies because
-    // the HTTP-based polling handshake succeeds before the WS upgrade is attempted.
     socketRef.current = io(SOCKET_URL, {
-      path: '/api/socket.io',
+      path: "/api/socket.io",
       auth: { token },
       reconnection: true,
       reconnectionDelay: 2000,
       reconnectionDelayMax: 10000,
-      reconnectionAttempts: 3,
+      reconnectionAttempts: 5,
       transports: ["polling", "websocket"],
     });
 
-    // Join user-specific room
+    // ── Join user + org room ───────────────────────────────────────────────────
     socketRef.current.on("connect", () => {
       console.log("[Socket.io] Connected:", socketRef.current?.id);
       socketFailedRef.current = false;
       socketRef.current?.emit("join-user-room", {
         userId,
         role: role || "user",
+        orgId: orgId || undefined,
       });
     });
 
-    // Sync session when server emits session:sync-required
+    // ── Session / org sync ────────────────────────────────────────────────────
     const syncSession = async () => {
       try {
         const { data } = await api.get(endpoint, { _silent: true } as any);
-        if (!data?.actor) {
-          return;
-        }
-
+        if (!data?.actor) return;
         const currentToken = useAuthStore.getState().token;
-        if (!currentToken) {
-          return;
-        }
-
+        if (!currentToken) return;
         const currentActor = useAuthStore.getState().actor;
-        if (JSON.stringify(currentActor) === JSON.stringify(data.actor)) {
-          return;
-        }
-
+        if (JSON.stringify(currentActor) === JSON.stringify(data.actor)) return;
         useAuthStore.getState().setAuth(currentToken, data.actor);
       } catch {
-        // Silent sync failures are expected when offline or session expires.
+        // Silent — expected when offline or session expires
       }
     };
 
-    socketRef.current.on("session:sync-required", async (data: unknown) => {
-      console.log("[Socket.io] Session sync required:", data);
+    socketRef.current.on("session:sync-required", async () => {
       await syncSession();
     });
 
-    // Listen for org updates (plan, settings, etc.)
-    socketRef.current.on("org:updated", async (data: unknown) => {
-      console.log("[Socket.io] Organization updated:", data);
+    socketRef.current.on("org:updated", async () => {
       await syncSession();
+      window.dispatchEvent(new CustomEvent("campusync:org-updated"));
     });
 
-    // Listen for payment success notifications
-    socketRef.current.on("payment:success", (data: unknown) => {
-      console.log("[Socket.io] Payment success:", data);
+    socketRef.current.on("payment:success", () => {
       syncSession();
     });
 
-    // Listen for memory updates and notify memory views to refresh immediately.
+    // ── Memory events ─────────────────────────────────────────────────────────
     socketRef.current.on("memory:updated", (data: unknown) => {
-      console.log("[Socket.io] Memory updated:", data);
       window.dispatchEvent(
-        new CustomEvent("campusync:memory-updated", { detail: data }),
+        new CustomEvent("campusync:memory-updated", { detail: data })
       );
     });
 
-    // Listen for new notifications
-    socketRef.current.on("notification:new", (data: unknown) => {
-      console.log("[Socket.io] New notification:", data);
+    // ── Reaction updates ──────────────────────────────────────────────────────
+    // Server emits { memory_id, reaction_counts, updated_by }
+    // Consumers patch counts in-place — no full re-fetch needed
+    socketRef.current.on("reaction:updated", (data: unknown) => {
       window.dispatchEvent(
-        new CustomEvent("campusync:notifications-updated", { detail: data }),
+        new CustomEvent("campusync:reaction-updated", { detail: data })
       );
+    });
+
+    // ── Cohort events (admin dashboard) ───────────────────────────────────────
+    socketRef.current.on("cohort:student-added", (data: unknown) => {
+      window.dispatchEvent(
+        new CustomEvent("campusync:cohort-updated", {
+          detail: { action: "added", ...(data as object) },
+        })
+      );
+    });
+
+    socketRef.current.on("cohort:student-updated", (data: unknown) => {
+      window.dispatchEvent(
+        new CustomEvent("campusync:cohort-updated", {
+          detail: { action: "updated", ...(data as object) },
+        })
+      );
+    });
+
+    socketRef.current.on("cohort:student-removed", (data: unknown) => {
+      window.dispatchEvent(
+        new CustomEvent("campusync:cohort-updated", {
+          detail: { action: "removed", ...(data as object) },
+        })
+      );
+    });
+
+    // ── Alumni request events ─────────────────────────────────────────────────
+    socketRef.current.on("alumni:request-updated", (data: unknown) => {
+      window.dispatchEvent(
+        new CustomEvent("campusync:alumni-request-updated", { detail: data })
+      );
+    });
+
+    // ── Notifications ─────────────────────────────────────────────────────────
+    socketRef.current.on("notification:new", (data: unknown) => {
+      window.dispatchEvent(
+        new CustomEvent("campusync:notifications-updated", { detail: data })
+      );
+      // Also trigger memory refresh if notification is about a new memory
       const payload =
         data && typeof data === "object"
           ? (data as Record<string, unknown>)
           : null;
       if (payload?.type === "new_memory") {
         window.dispatchEvent(
-          new CustomEvent("campusync:memory-updated", { detail: data }),
+          new CustomEvent("campusync:memory-updated", { detail: data })
         );
       }
     });
 
-    // Downgrade to warn — connection errors are expected when the server
-    // is unreachable (e.g. Render free tier spin-up) and are not actionable.
+    // ── Connection error handling ─────────────────────────────────────────────
     socketRef.current.on("connect_error", (error: unknown) => {
       console.warn("[Socket.io] Connection error:", error);
     });
 
     socketRef.current.on("reconnect_failed", () => {
-      // All reconnection attempts exhausted — mark socket as permanently failed
-      // so the fallback polling knows not to log noise on every interval tick.
-      console.warn("[Socket.io] All reconnection attempts failed. Switching to polling fallback.");
+      console.warn("[Socket.io] All reconnection attempts failed. Falling back to polling.");
       socketFailedRef.current = true;
     });
 
@@ -155,26 +175,20 @@ export default function SessionSyncProvider({
       console.log("[Socket.io] Disconnected");
     });
 
-    // Fallback polling every 60 seconds — only when socket is not connected.
-    // After reconnect_failed fires we stop logging the "[Fallback]" message
-    // every tick to keep the console clean.
+    // ── Fallback: poll every 60s if socket is down ────────────────────────────
     const pollInterval = setInterval(async () => {
       if (!socketRef.current?.connected) {
         if (!socketFailedRef.current) {
-          console.log("[Fallback] Socket.io not connected, polling manually");
+          console.log("[Fallback] Socket not connected, polling session");
         }
         await syncSession();
       }
     }, 60_000);
 
-    // Sync on visibility change (tab focus)
+    // ── Sync on visibility/focus change ───────────────────────────────────────
     const refreshOnReturn = () => {
-      if (document.visibilityState === "visible") {
-        syncSession();
-      }
+      if (document.visibilityState === "visible") syncSession();
     };
-
-    // Sync on storage change (logout from another tab)
     const refreshOnStorage = (event: StorageEvent) => {
       if (event.key === "phygital_token" || event.key === "phygital_actor") {
         syncSession();
@@ -188,7 +202,7 @@ export default function SessionSyncProvider({
     window.addEventListener("storage", refreshOnStorage);
 
     return () => {
-      window.clearInterval(pollInterval);
+      clearInterval(pollInterval);
       window.removeEventListener("focus", syncSession);
       window.removeEventListener("online", syncSession);
       window.removeEventListener("pageshow", syncSession);
@@ -197,7 +211,7 @@ export default function SessionSyncProvider({
       socketRef.current?.disconnect();
       socketFailedRef.current = false;
     };
-  }, [isAuthenticated, role, token, userId]);
+  }, [isAuthenticated, role, token, userId, orgId]);
 
   return <>{children}</>;
 }

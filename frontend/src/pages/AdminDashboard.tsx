@@ -269,12 +269,40 @@ export default function AdminDashboard() {
     fetchCohort();
   }, [fetchCohort]);
 
-  // Poll analytics every 15 seconds to ensure real-time side nav badges
+  // No more blind polling — socket events drive all updates.
+  // Initial fetch only.
   useEffect(() => {
     fetchAnalytics();
-    const interval = setInterval(fetchAnalytics, 15000);
-    return () => clearInterval(interval);
   }, [fetchAnalytics]);
+
+  // Real-time: cohort changes — admin added/edited/removed a student
+  useEffect(() => {
+    const onCohortUpdated = () => fetchCohort();
+    window.addEventListener("campusync:cohort-updated", onCohortUpdated);
+    return () => window.removeEventListener("campusync:cohort-updated", onCohortUpdated);
+  }, [fetchCohort]);
+
+  // Real-time: alumni request approved/rejected
+  useEffect(() => {
+    const onAlumniUpdated = () => {
+      fetchAlumniRequests();
+      fetchAnalytics();
+    };
+    window.addEventListener("campusync:alumni-request-updated", onAlumniUpdated);
+    return () => window.removeEventListener("campusync:alumni-request-updated", onAlumniUpdated);
+  // fetchAlumniRequests and fetchAnalytics are stable callbacks
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Real-time: memory uploaded/deleted
+  useEffect(() => {
+    const onMemoryUpdated = () => {
+      if (tab === "memories") fetchMemories();
+      fetchAnalytics();
+    };
+    window.addEventListener("campusync:memory-updated", onMemoryUpdated);
+    return () => window.removeEventListener("campusync:memory-updated", onMemoryUpdated);
+  }, [fetchMemories, fetchAnalytics, tab]);
 
   useEffect(() => {
     if (tab === "memories") fetchMemories();

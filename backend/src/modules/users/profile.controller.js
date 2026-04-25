@@ -57,6 +57,16 @@ async function updateProfile(req, res) {
         }
 
         const updated = await User.findById(req.actor.id).select('-password_hash');
+
+        // Emit session sync so all connected tabs/devices refresh immediately
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`user:${user._id}`).emit('session:sync-required', {
+                reason: 'profile_updated',
+                timestamp: new Date().toISOString(),
+            });
+        }
+
         res.json({ message: 'Profile updated.', user: updated });
     } catch (err) {
         logger.error('updateProfile error:', err.message);
@@ -64,4 +74,37 @@ async function updateProfile(req, res) {
     }
 }
 
-module.exports = { getProfile, updateProfile };
+async function deleteAvatar(req, res) {
+    try {
+        const user = await User.findById(req.actor.id);
+        if (!user) return res.status(404).json({ error: 'User not found.' });
+
+        if (!user.avatar_url && !user.avatar_public_id) {
+            return res.status(400).json({ error: 'No avatar to remove.' });
+        }
+
+        if (user.avatar_public_id) {
+            deleteAsset(user.avatar_public_id).catch(() => {});
+        }
+
+        user.avatar_url = null;
+        user.avatar_public_id = null;
+        await user.save();
+
+        // Emit session sync so all connected tabs/devices reflect avatar removal
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`user:${user._id}`).emit('session:sync-required', {
+                reason: 'avatar_removed',
+                timestamp: new Date().toISOString(),
+            });
+        }
+
+        res.json({ message: 'Avatar removed.' });
+    } catch (err) {
+        logger.error('deleteAvatar error:', err.message);
+        res.status(500).json({ error: 'Failed to remove avatar.' });
+    }
+}
+
+module.exports = { getProfile, updateProfile, deleteAvatar };

@@ -74,6 +74,19 @@ async function addReaction (req, res) {
             emitNotificationToActor({ role: 'super_admin', id: sa._id }, note);
         }
 
+        // Broadcast updated counts to all org members so walls refresh live
+        if (reactor?.organization_id) {
+            const io = req.app.get('io');
+            if (io) {
+                io.to(`org:${ reactor.organization_id }`).emit('reaction:updated', {
+                    memory_id: memoryId,
+                    reaction_counts: reactionCounts,
+                    updated_by: req.actor.id,
+                    timestamp: new Date().toISOString(),
+                });
+            }
+        }
+
         res.json({ message: 'Reaction added.', reaction_counts: reactionCounts, viewer_reactions: viewerReactions });
     } catch(err) {
         logger.error('addReaction error:', err.message);
@@ -104,6 +117,20 @@ async function removeReaction (req, res) {
 
         const viewerRows = await MemoryReaction.find({ memory_id: memoryId, user_id: req.actor.id, is_active: true }).select('emoji').lean();
         const viewerReactions = viewerRows.map(r => r.emoji);
+
+        // Broadcast updated counts to all org members
+        if (memory) {
+            const reactor2 = await (require('../models').User).findById(req.actor.id).select('organization_id').lean();
+            const io = req.app.get('io');
+            if (io && reactor2?.organization_id) {
+                io.to(`org:${ reactor2.organization_id }`).emit('reaction:updated', {
+                    memory_id: memoryId,
+                    reaction_counts: reactionCounts,
+                    updated_by: req.actor.id,
+                    timestamp: new Date().toISOString(),
+                });
+            }
+        }
 
         res.json({ message: 'Reaction removed.', reaction_counts: reactionCounts, viewer_reactions: viewerReactions });
     } catch(err) {

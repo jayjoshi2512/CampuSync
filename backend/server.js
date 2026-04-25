@@ -264,13 +264,19 @@ async function startServer () {
             console.log(`[Socket.io] User connected: ${ socket.id }`);
 
             // Users join rooms by their role/org (sent from client)
+            // Rooms:
+            //   user:{userId}  — individual user (session sync, personal notifs)
+            //   org:{orgId}    — all members of same org (cohort changes, settings)
+            //   role:{role}    — all users with same role (admin-wide events)
             socket.on('join-user-room', (data) => {
-                const { userId, role } = data;
+                const { userId, role, orgId } = data;
                 socket.userId = userId;
                 socket.role = role;
+                socket.orgId = orgId;
                 socket.join(`user:${ userId }`);
                 socket.join(`role:${ role }`);
-                console.log(`[Socket.io] ${ socket.id } joined user:${ userId } and role:${ role }`);
+                if (orgId) socket.join(`org:${ orgId }`);
+                console.log(`[Socket.io] ${ socket.id } joined user:${ userId }, role:${ role }${ orgId ? `, org:${ orgId }` : '' }`);
             });
 
             socket.on('disconnect', () => {

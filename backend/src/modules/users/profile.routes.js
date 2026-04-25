@@ -11,6 +11,6 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 router.use(verifyUserJWT);
 router.get('/', controller.getProfile);
 router.patch('/', upload.single('avatar'), profileUpdate, controller.updateProfile);
+router.delete('/avatar', controller.deleteAvatar);
 
 module.exports = router;
-
