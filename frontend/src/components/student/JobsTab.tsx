@@ -75,8 +75,12 @@ export default function JobsTab() {
     if (!isAlumni || !actor) return false;
     const actorId = String((actor as any).id || "");
     const actorEmail = String((actor as any).email || "").toLowerCase();
-    const actorName = String((actor as any).name || "").trim().toLowerCase();
-    const postedByName = String(job.posted_by || "").trim().toLowerCase();
+    const actorName = String((actor as any).name || "")
+      .trim()
+      .toLowerCase();
+    const postedByName = String(job.posted_by || "")
+      .trim()
+      .toLowerCase();
     return (
       job.posted_by_id === actorId ||
       job.posted_by_email?.toLowerCase() === actorEmail ||

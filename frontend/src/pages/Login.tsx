@@ -74,7 +74,10 @@ export default function Login() {
     try {
       const { data } = await api.post("/user/login", { email, password });
       if (data?.actor?.role === "alumni") {
-        toast("This is an alumni account. Please use the Alumni tab to sign in.", "error");
+        toast(
+          "This is an alumni account. Please use the Alumni tab to sign in.",
+          "error",
+        );
         return;
       }
       setAuth(data.token, data.actor);
@@ -214,7 +217,11 @@ export default function Login() {
         features={[
           { icon: ShieldCheck, text: "End-to-end encrypted", color: "#F59E0B" },
           { icon: Zap, text: "Sub-200ms response times", color: "#F87171" },
-          { icon: Shield, text: "SOC 2 compliant infrastructure", color: "#38BDF8" },
+          {
+            icon: Shield,
+            text: "SOC 2 compliant infrastructure",
+            color: "#38BDF8",
+          },
         ]}
       />
 
@@ -392,8 +399,6 @@ export default function Login() {
                     </button>
                   </div>
                 </div>
-
-
 
                 {/* Submit */}
                 <button
