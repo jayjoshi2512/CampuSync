@@ -32,10 +32,13 @@ export default function SessionSyncProvider({
   const userId = useAuthStore((state) => state.actor?.id);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const socketRef = useRef<Socket | null>(null);
+  // Track whether all reconnection attempts have been exhausted
+  const socketFailedRef = useRef(false);
 
   useEffect(() => {
     if (!isAuthenticated || !token || token.startsWith("demo_") || !userId) {
       socketRef.current?.disconnect();
+      socketFailedRef.current = false;
       return;
     }
 
@@ -44,19 +47,24 @@ export default function SessionSyncProvider({
       return;
     }
 
-    // Initialize socket.io connection with JWT auth
+    socketFailedRef.current = false;
+
+    // Use polling first, then upgrade to websocket.
+    // This is far more reliable behind Nginx / Cloudflare reverse proxies because
+    // the HTTP-based polling handshake succeeds before the WS upgrade is attempted.
     socketRef.current = io(SOCKET_URL, {
       auth: { token },
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-      transports: ["websocket", "polling"],
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: 3,
+      transports: ["polling", "websocket"],
     });
 
     // Join user-specific room
     socketRef.current.on("connect", () => {
       console.log("[Socket.io] Connected:", socketRef.current?.id);
+      socketFailedRef.current = false;
       socketRef.current?.emit("join-user-room", {
         userId,
         role: role || "user",
@@ -83,7 +91,7 @@ export default function SessionSyncProvider({
 
         useAuthStore.getState().setAuth(currentToken, data.actor);
       } catch {
-        // Silent sync failures are expected when offline or when the session expires.
+        // Silent sync failures are expected when offline or session expires.
       }
     };
 
@@ -129,22 +137,34 @@ export default function SessionSyncProvider({
       }
     });
 
-    // Handle connection errors
+    // Downgrade to warn — connection errors are expected when the server
+    // is unreachable (e.g. Render free tier spin-up) and are not actionable.
     socketRef.current.on("connect_error", (error: unknown) => {
-      console.error("[Socket.io] Connection error:", error);
+      console.warn("[Socket.io] Connection error:", error);
+    });
+
+    socketRef.current.on("reconnect_failed", () => {
+      // All reconnection attempts exhausted — mark socket as permanently failed
+      // so the fallback polling knows not to log noise on every interval tick.
+      console.warn("[Socket.io] All reconnection attempts failed. Switching to polling fallback.");
+      socketFailedRef.current = true;
     });
 
     socketRef.current.on("disconnect", () => {
       console.log("[Socket.io] Disconnected");
     });
 
-    // Fallback polling every 30 seconds if socket.io is unavailable
+    // Fallback polling every 60 seconds — only when socket is not connected.
+    // After reconnect_failed fires we stop logging the "[Fallback]" message
+    // every tick to keep the console clean.
     const pollInterval = setInterval(async () => {
       if (!socketRef.current?.connected) {
-        console.log("[Fallback] Socket.io not connected, polling manually");
+        if (!socketFailedRef.current) {
+          console.log("[Fallback] Socket.io not connected, polling manually");
+        }
         await syncSession();
       }
-    }, 30000);
+    }, 60_000);
 
     // Sync on visibility change (tab focus)
     const refreshOnReturn = () => {
@@ -174,6 +194,7 @@ export default function SessionSyncProvider({
       document.removeEventListener("visibilitychange", refreshOnReturn);
       window.removeEventListener("storage", refreshOnStorage);
       socketRef.current?.disconnect();
+      socketFailedRef.current = false;
     };
   }, [isAuthenticated, role, token, userId]);
 
