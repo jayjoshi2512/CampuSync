@@ -11,6 +11,8 @@ import {
   Camera,
 } from "lucide-react";
 
+const APP_DOWNLOAD_URL = "/downloads/app-release.apk";
+
 export const fadeUp = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
@@ -95,6 +97,26 @@ export function LandingNavbar({
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <ThemeToggle />
         {!isCompactLayout && (
+          <a
+            href={APP_DOWNLOAD_URL}
+            style={{
+              padding: "8px 18px",
+              borderRadius: 8,
+              border: "1px solid var(--color-border-default)",
+              background: "transparent",
+              color: "var(--color-text-secondary)",
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 500,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+            }}
+          >
+            Download App
+          </a>
+        )}
+        {!isCompactLayout && (
           <button
             onClick={() => navigate("/login")}
             style={{
@@ -133,6 +155,10 @@ export function LandingNavbar({
 
 export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
   const navigate = useNavigate();
+  const downloadQueryActive =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("download") === "app";
+
   return (
     <section
       style={{
@@ -224,6 +250,24 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
           paddingInline: 16,
         }}
       >
+        <a
+          href={APP_DOWNLOAD_URL}
+          style={{
+            padding: "14px 28px",
+            borderRadius: 10,
+            border: "1px solid var(--color-border-default)",
+            background: "transparent",
+            color: "var(--color-text-secondary)",
+            fontSize: 14,
+            fontWeight: 500,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          Download Android App
+        </a>
         <button
           onClick={() => navigate("/register")}
           style={{
@@ -258,6 +302,22 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
           View Demo
         </button>
       </motion.div>
+
+      {downloadQueryActive && (
+        <motion.div
+          {...fadeUp}
+          transition={{ duration: 0.4, delay: 0.35 }}
+          style={{
+            marginTop: 14,
+            color: "var(--color-text-muted)",
+            fontSize: 13,
+          }}
+        >
+          Could not open the app automatically. Download it and scan the QR code
+          again.
+        </motion.div>
+      )}
+
       <motion.div
         {...fadeUp}
         transition={{ duration: 0.5, delay: 0.4 }}

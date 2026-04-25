@@ -1,38 +1,33 @@
 // frontend/src/pages/QrLogin.tsx
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import api from "@/utils/api";
-import { useAuthStore } from "@/store/authStore";
-import { useToast } from "@/components/ToastProvider";
-import { Lock } from "lucide-react";
+import { Smartphone } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 export default function QrLogin() {
   const { qr_hash } = useParams<{ qr_hash: string }>();
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
-  const { toast } = useToast();
-  const [error, setError] = useState("");
+  const [status, setStatus] = useState("Opening CampuSync app...");
   const attempted = useRef(false);
   const isCompactLayout = useMediaQuery("(max-width: 760px)");
 
   useEffect(() => {
     if (!qr_hash || attempted.current) return;
     attempted.current = true;
-    (async () => {
-      try {
-        const { data } = await api.get(`/user/qr-login/${qr_hash}`);
-        setAuth(data.token, data.actor);
-        toast("Welcome back!", "success");
-        // Redirect to portal with memories tab
-        navigate("/portal?tab=memories", { replace: true });
-      } catch (err: any) {
-        setError(err.response?.data?.error || "Invalid or expired QR code.");
-      }
-    })();
-  }, [qr_hash, navigate, setAuth, toast]);
+    const deepLink = `campusync://qr-login/${encodeURIComponent(qr_hash)}`;
 
-  if (error) {
+    // Attempt to open mobile app first.
+    window.location.href = deepLink;
+
+    const timer = window.setTimeout(() => {
+      setStatus("App not detected. Redirecting you to download CampuSync...");
+      navigate("/?download=app", { replace: true });
+    }, 1400);
+
+    return () => window.clearTimeout(timer);
+  }, [qr_hash, navigate]);
+
+  if (!qr_hash) {
     return (
       <div
         style={{
@@ -56,12 +51,12 @@ export default function QrLogin() {
             margin: isCompactLayout ? "0 12px" : "0 20px",
           }}
         >
-          <Lock
+          <Smartphone
             size={40}
             style={{ color: "var(--color-text-muted)", marginBottom: 16 }}
           />
           <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-            QR Login Failed
+            Invalid QR Link
           </h2>
           <p
             style={{
@@ -70,10 +65,10 @@ export default function QrLogin() {
               marginBottom: 20,
             }}
           >
-            {error}
+            This QR code is missing a valid login token.
           </p>
           <button
-            onClick={() => navigate("/login")}
+            onClick={() => navigate("/?download=app")}
             style={{
               padding: "10px 24px",
               borderRadius: 8,
@@ -85,7 +80,7 @@ export default function QrLogin() {
               fontWeight: 600,
             }}
           >
-            Go to Login
+            Go to Home
           </button>
         </div>
       </div>
@@ -111,6 +106,7 @@ export default function QrLogin() {
           gap: 16,
         }}
       >
+        <Smartphone size={28} />
         <div
           style={{
             width: 32,
@@ -121,7 +117,7 @@ export default function QrLogin() {
             animation: "spin 1s linear infinite",
           }}
         />
-        <p style={{ fontSize: 14 }}>Authenticating…</p>
+        <p style={{ fontSize: 14 }}>{status}</p>
         <style>{`@keyframes spin { to { transform:rotate(360deg); } }`}</style>
       </div>
     </div>
