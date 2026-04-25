@@ -40,27 +40,48 @@ function toOrigin (value) {
         return null;
     }
 }
+function parseOrigins (csvValue) {
+    if(!csvValue) return [];
+    return csvValue
+        .split(',')
+        .map((item) => toOrigin(item.trim()))
+        .filter(Boolean);
+}
 
 const allowedOrigins = [ ...new Set([
-    process.env.APP_BASE_URL || 'http://localhost:5173',
+    process.env.APP_BASE_URL,
+    process.env.FRONTEND_URL,
+    process.env.FRONTEND_BASE_URL,
+    process.env.WEB_BASE_URL,
     'https://campusync-six.vercel.app',
     'http://localhost:5173',
     'http://localhost:5174',
+    ...parseOrigins(process.env.CORS_ORIGINS),
 ].map(toOrigin).filter(Boolean)) ];
 
-app.use(cors({
+function isAllowedOrigin (origin) {
+    if(!origin) return true;
+    if(allowedOrigins.includes(origin)) return true;
+    if(/^https:\/\/campusync-[a-z0-9-]+\.vercel\.app$/i.test(origin)) return true;
+    if(/^https:\/\/[a-z0-9-]+-campusync\.vercel\.app$/i.test(origin)) return true;
+    return false;
+}
+
+const corsOptions = {
     origin: function(origin, callback) {
-        // Allow requests with no origin (server-to-server, mobile apps, curl)
-        if(!origin) return callback(null, true);
-        if(allowedOrigins.includes(origin)) {
+        if(isAllowedOrigin(origin)) {
             return callback(null, true);
         }
         return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: [ 'GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS' ],
-    allowedHeaders: [ 'Content-Type', 'Authorization' ],
-}));
+    allowedHeaders: [ 'Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin' ],
+    optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // ============================================
 // RAZORPAY WEBHOOK — MUST be before express.json()
@@ -244,6 +265,7 @@ async function startServer () {
             logger.info(`   Frontend:    ${ process.env.APP_BASE_URL || 'http://localhost:5173' }`);
             logger.info(`   Health:      http://localhost:${ PORT }/api/health`);
             logger.info(`   WebSocket:   wss://campusync-api.unicodetechnolab.site`);
+            logger.info(`   Allowed CORS origins: ${ allowedOrigins.join(', ') }`);
         });
     } catch(err) {
         logger.error('Failed to start server:', err.message);
