@@ -22,17 +22,10 @@ async function sendOtp (req, res) {
             return res.status(409).json({ error: 'This email is already registered and pending or active. Please log in instead.' });
         }
 
-        const existingAttempts = await redis.get(`reg_otp_count:${ email }`);
-        if(existingAttempts && parseInt(existingAttempts) >= 10) {
-            return res.status(429).json({ error: 'Too many OTP requests for this email. Try again later.' });
-        }
-
         const otp = generateRegOTP();
         const otpHash = await bcrypt.hash(otp, 10);
         await redis.set(`reg_otp:${ email }`, otpHash, 900);
 
-        const count = await redis.incr(`reg_otp_count:${ email }`);
-        if(count === 1) await redis.expire(`reg_otp_count:${ email }`, 3600);
         await redis.del(`reg_otp_attempts:${ email }`);
 
         await sendMail(email, 'Verify Your Email — CampuSync', registrationOtpEmail(name, otp));
@@ -48,10 +41,6 @@ async function verifyOtp (req, res) {
     try {
         const { email, otp } = req.body;
         if(!email || !otp) return res.status(400).json({ error: 'Email and OTP are required.' });
-
-        const attempts = await redis.incr(`reg_otp_attempts:${ email }`);
-        if(attempts === 1) await redis.expire(`reg_otp_attempts:${ email }`, 900);
-        if(attempts > 5) return res.status(429).json({ error: 'Too many verification attempts. Request a new code.' });
 
         const storedHash = await redis.get(`reg_otp:${ email }`);
         if(!storedHash) return res.status(400).json({ error: 'Verification code expired or not found. Please request a new one.' });
@@ -174,10 +163,6 @@ async function verifyAlumniOtp (req, res) {
     try {
         const { email, otp } = req.body;
         if(!email || !otp) return res.status(400).json({ error: 'Email and OTP are required.' });
-
-        const attempts = await redis.incr(`alumni_reg_otp_attempts:${ email }`);
-        if(attempts === 1) await redis.expire(`alumni_reg_otp_attempts:${ email }`, 900);
-        if(attempts > 5) return res.status(429).json({ error: 'Too many verification attempts. Request a new code.' });
 
         const storedHash = await redis.get(`alumni_reg_otp:${ email }`);
         if(!storedHash) return res.status(400).json({ error: 'Verification code expired or not found.' });
