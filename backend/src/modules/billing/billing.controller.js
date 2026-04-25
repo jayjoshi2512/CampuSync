@@ -5,7 +5,7 @@ const { verifyWebhookSignature, getPlanLimits, formatAmountDisplay } = require('
 const { sendMail } = require('../../../config/mailer');
 const auditLog = require('../../../utils/auditLog');
 const { logger } = require('../../../config/database');
-const { emitPaymentSuccess, emitOrgUpdate, emitSessionSync } = require('../../../utils/socketEvents');
+const { emitPaymentSuccess, emitOrgUpdate, emitSessionSync } = require('../../utils/socketEvents');
 
 async function createSubscription (req, res) {
     try {
