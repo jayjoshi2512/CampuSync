@@ -92,7 +92,10 @@ export default function RegisterPage() {
     try {
       await api.post("/register/submit", form);
       setStep("success");
-      toast("Application submitted successfully!", "success");
+      toast(
+        "Request submitted to the super-admin. You'll receive a confirmation mail in 12-24 hours. Please check your spam/junk folders also.",
+        "success",
+      );
     } catch (err: any) {
       const msg =
         err.response?.data?.details?.[0]?.message ||

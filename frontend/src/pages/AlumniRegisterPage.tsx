@@ -130,7 +130,10 @@ export default function AlumniRegisterPage() {
         linkedin_url: form.linkedin_url || null,
         reason: form.reason || null,
       });
-      toast("Alumni request submitted. Wait for admin approval.", "success");
+      toast(
+        "Request submitted to the admin. You'll receive a confirmation mail in 12-24 hours. Please check your spam/junk folders also.",
+        "success",
+      );
       navigate("/login");
     } catch (err: any) {
       const serverError =
