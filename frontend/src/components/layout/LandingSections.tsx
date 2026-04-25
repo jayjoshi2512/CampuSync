@@ -188,16 +188,16 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
         {...fadeUp}
         transition={{ duration: 0.6, delay: 0.1 }}
         style={{
-          fontSize: "clamp(36px, 5.5vw, 60px)",
+          fontSize: "clamp(34px, 5.1vw, 56px)",
           fontWeight: 800,
           color: "var(--color-text-primary)",
-          lineHeight: 1.1,
-          letterSpacing: -1.5,
-          maxWidth: 720,
-          margin: "0 auto 20px",
+          lineHeight: 1.08,
+          letterSpacing: -1.1,
+          maxWidth: 760,
+          margin: "0 auto 14px",
         }}
       >
-        The platform for{" "}
+        Enterprise Platform for{" "}
         <span
           style={{
             background: "linear-gradient(135deg, #10B981, #38BDF8)",
@@ -206,23 +206,58 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
             WebkitTextFillColor: "transparent",
           }}
         >
-          alumni engagement
+          Alumni Engagement
         </span>
       </motion.h1>
       <motion.p
         {...fadeUp}
         transition={{ duration: 0.6, delay: 0.2 }}
         style={{
-          fontSize: 17,
+          fontSize: 16,
           color: "var(--color-text-muted)",
-          lineHeight: 1.7,
-          maxWidth: 520,
-          margin: "0 auto 36px",
+          lineHeight: 1.65,
+          maxWidth: 620,
+          margin: "0 auto 28px",
         }}
       >
-        Transform farewells into lasting digital memories. Identity cards,
-        memory walls, and alumni networks — all in one premium platform.
+        Launch secure digital cards, curated memory walls, and alumni-first
+        networking workflows from one production-ready workspace.
       </motion.p>
+
+      <motion.div
+        {...fadeUp}
+        transition={{ duration: 0.45, delay: 0.25 }}
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          gap: 10,
+          marginBottom: 30,
+          paddingInline: 16,
+        }}
+      >
+        {[
+          "Role-based access control",
+          "QR-powered identity",
+          "Institution-grade audit trail",
+        ].map((chip) => (
+          <span
+            key={chip}
+            style={{
+              fontSize: 12,
+              color: "var(--color-text-secondary)",
+              background: "var(--color-bg-secondary)",
+              border: "1px solid var(--color-border-subtle)",
+              borderRadius: 999,
+              padding: "7px 12px",
+              letterSpacing: 0.1,
+            }}
+          >
+            {chip}
+          </span>
+        ))}
+      </motion.div>
+
       <motion.div
         {...fadeUp}
         transition={{ duration: 0.5, delay: 0.3 }}
@@ -284,7 +319,7 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
             cursor: "pointer",
           }}
         >
-          View Demo
+          Access Portal
         </button>
       </motion.div>
 

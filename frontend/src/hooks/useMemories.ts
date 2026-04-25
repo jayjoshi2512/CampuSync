@@ -32,7 +32,7 @@ export function useMemories(isDemo?: boolean) {
       thumbnail_url:
         "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=400&q=60",
       caption: "🎓 Farewell day vibes! What an incredible journey.",
-      uploader: { name: "Aarav Patel" },
+      uploader: { name: "Jay Joshi" },
       reaction_counts: { "❤️": 12, "🔥": 5 },
       viewer_reactions: ["❤️"],
       created_at: new Date(Date.now() - 86400000).toISOString(),

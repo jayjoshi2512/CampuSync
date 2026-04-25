@@ -42,14 +42,19 @@ export default function JobsTab() {
     hr_email: "",
   });
   const actor = useAuthStore((s) => s.actor);
+  const token = useAuthStore((s) => s.token);
   const { toast } = useToast();
 
   const isAlumni = actor?.role === "alumni";
+  const isDemo = !!token?.startsWith("demo_");
+  const demoJobsStorageKey = "campusync_demo_jobs";
 
   const sanitizeJob = (raw: any): Job => {
     const stringOr = (value: any, fallback: string) => {
       const normalized = typeof value === "string" ? value.trim() : "";
-      return normalized || fallback;
+      return !normalized || normalized.toLowerCase() === "null"
+        ? fallback
+        : normalized;
     };
 
     return {
@@ -70,18 +75,31 @@ export default function JobsTab() {
     if (!isAlumni || !actor) return false;
     const actorId = String((actor as any).id || "");
     const actorEmail = String((actor as any).email || "").toLowerCase();
+    const actorName = String((actor as any).name || "").trim().toLowerCase();
+    const postedByName = String(job.posted_by || "").trim().toLowerCase();
     return (
       job.posted_by_id === actorId ||
-      job.posted_by_email?.toLowerCase() === actorEmail
+      job.posted_by_email?.toLowerCase() === actorEmail ||
+      (!!actorName && !!postedByName && postedByName === actorName)
     );
   };
 
   useEffect(() => {
     fetchJobs();
-  }, []);
+  }, [isDemo]);
 
   const fetchJobs = async () => {
     try {
+      if (isDemo) {
+        const stored = window.localStorage.getItem(demoJobsStorageKey);
+        const parsed = stored ? JSON.parse(stored) : [];
+        const normalized = Array.isArray(parsed)
+          ? parsed.map((job: any) => sanitizeJob(job))
+          : [];
+        setJobs(normalized);
+        return;
+      }
+
       const { data } = await api.get("/features");
       const normalized = Array.isArray(data.features?.jobs)
         ? data.features.jobs.map((job: any) => sanitizeJob(job))
@@ -119,6 +137,12 @@ export default function JobsTab() {
   };
 
   const saveJobs = async (nextJobs: Job[]) => {
+    if (isDemo) {
+      window.localStorage.setItem(demoJobsStorageKey, JSON.stringify(nextJobs));
+      setJobs(nextJobs);
+      return;
+    }
+
     await api.post("/features", { jobs: nextJobs });
     setJobs(nextJobs);
   };

@@ -26,8 +26,8 @@ type LoginMode = "admin" | "student" | "alumni";
 
 export default function Login() {
   const [mode, setMode] = useState<LoginMode>("admin");
-  const [email, setEmail] = useState("joshijay075@gmail.com");
-  const [password, setPassword] = useState("11111aA@");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
@@ -128,8 +128,8 @@ export default function Login() {
     } else if (mode === "student") {
       setAuth("demo_user_token_" + Date.now(), {
         id: 0,
-        email: "aarav@bits.ac.in",
-        name: "Aarav Patel",
+        email: "jay.joshi@bits.ac.in",
+        name: "Jay Joshi",
         role: "user" as const,
         roll_number: "CS2022001",
         branch: "Computer Science",
