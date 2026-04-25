@@ -37,7 +37,7 @@ const organizationSchema = new mongoose.Schema({
   logo_public_id:          { type: String, default: null },
   card_back_image_url:     { type: String, default: null },
   card_back_public_id:     { type: String, default: null },
-  custom_domain:           { type: String, default: null, sparse: true, unique: true },
+  custom_domain:           { type: String, default: undefined, sparse: true, unique: true },
   features_data:           { type: mongoose.Schema.Types.Mixed, default: null },
 
   // Billing

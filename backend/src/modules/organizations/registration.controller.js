@@ -138,7 +138,7 @@ async function submit (req, res) {
     } catch(err) {
         logger.error(`submit error: ${ err.message }`);
         console.error(err);
-        res.status(500).json({ error: 'Registration failed. Please try again.' });
+        res.status(500).json({ error: 'Registration failed. Please try again.', details: err.message, stack: err.stack });
     }
 }
 
