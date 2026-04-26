@@ -155,14 +155,16 @@ export default function RegistrationQueue() {
               </AnimatePresence>
 
               {r.status === 'pending' && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button onClick={() => approve(r.id)}
-                    style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: 'var(--color-accent-green)', color: '#0D1117', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    Approve
-                  </button>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
                   <button onClick={() => setRejectModal(r.id)}
-                    style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: 'var(--color-accent-red)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    Reject
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, border: 'none', background: 'var(--color-accent-red)', color: '#fff', cursor: 'pointer' }}
+                    title="Reject">
+                    <XCircle size={18} />
+                  </button>
+                  <button onClick={() => approve(r.id)}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, border: 'none', background: 'var(--color-accent-green)', color: '#0D1117', cursor: 'pointer' }}
+                    title="Approve">
+                    <CheckCircle size={18} />
                   </button>
                 </div>
               )}

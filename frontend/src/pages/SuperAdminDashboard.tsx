@@ -60,6 +60,7 @@ export default function SuperAdminDashboard() {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [trashItems, setTrashItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (isDemo) {
@@ -93,7 +94,7 @@ export default function SuperAdminDashboard() {
       } catch {}
     };
     fetchTab();
-  }, [tab, isDemo]);
+  }, [tab, isDemo, refreshKey]);
 
   const stats = [
     {
@@ -248,7 +249,10 @@ export default function SuperAdminDashboard() {
 
         {/* ═══ ORGANIZATIONS ═══ */}
         {tab === "organizations" && (
-          <SuperAdminOrganizationsTab organizations={organizations} />
+          <SuperAdminOrganizationsTab 
+            organizations={organizations} 
+            onRefresh={() => setRefreshKey(k => k + 1)} 
+          />
         )}
 
         {/* ═══ AUDIT LOG ═══ */}
