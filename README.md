@@ -1,250 +1,312 @@
-# CampuSync
+# CampuSync — Web Platform
 
-**A full-stack SaaS platform for alumni engagement, digital farewell cards, and mentorship management.**
-
-CampuSync helps educational institutions create premium digital farewell cards for graduating students, build alumni networks, and facilitate mentorship between alumni and current students — all through a modern, dark-themed web interface.
-
----
-
-## ✨ Features
-
-### 🎓 Student Portal
-- **Digital Farewell Card** — Personalized, template-driven cards with QR codes
-- **Memory Wall** — Upload photos/videos; real-time reactions from peers
-- **Mentorship** — Request help from approved alumni mentors
-- **Events & Jobs** — Browse institution-published events and job listings
-- **Profile Editor** — Update avatar, bio, LinkedIn, and academic details
-
-### 🏛️ Alumni Portal
-- **Alumni Network** — Directory of all alumni from the institution
-- **Become a Mentor** — Request mentor status and guide students
-- **Mentor Dashboard** — View incoming student requests with badge counters, approve/reject with optional notes
-- **Card & Memories** — Access your own farewell card and shared memory wall
-
-### 🔧 Admin Dashboard
-- **Cohort Management** — Bulk CSV import or manual student creation with magic-link invitations
-- **Card Design** — Select from starter and premium card templates
-- **Alumni Requests** — Approve/reject alumni access requests with real-time sidebar badges
-- **Mentor Management** — Approve mentor requests from alumni, remove mentors
-- **Analytics** — Dashboard metrics, audit logs, and usage stats
-- **Announcements** — Broadcast emails to all members
-- **Settings** — Organization name, branding, card back images
-
-### 🛡️ Super Admin
-- **Institution Registration** — Review, approve, or reject new institutions
-- **OTP Authentication** — Secure email-based OTP login
-
-### 🔔 Notifications
-- **Real-time** — Server-Sent Events (SSE) push notifications
-- **Bell Icon** — Dropdown with unread count, mark-all-read
-- **Sidebar Badges** — Live badge counters for pending mentorship/alumni requests
-- **Types** — Memories, announcements, mentorship, reactions, system events
-
-### 📧 Email System
-- **Responsive Templates** — Dark-themed, mobile-friendly HTML emails
-- **Copy-Friendly** — Selectable text with clipboard icon for links/codes
-- **Templates** — OTP verification, magic links, approval/rejection, password reset, announcements
+> **Phygital Alumni Engagement & Memory SaaS**  
+> A multi-tenant platform for colleges to manage digital identity cards, a shared memory wall, alumni transitions, mentorship, and more — all with real-time Socket.IO sync.
 
 ---
 
-## 🏗️ Tech Stack
+## Table of Contents
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS v4 |
-| **UI** | Framer Motion, Lucide React icons, Zustand state management |
-| **Backend** | Node.js, Express.js |
-| **Database** | MongoDB (Mongoose ODM) |
-| **Cache/Session** | Upstash Redis (HTTP REST) with in-memory fallback |
-| **Auth** | JWT (role-based: Super Admin, Admin, User/Alumni), Magic Links, OTP |
-| **Email** | Nodemailer (SMTP), responsive HTML templates |
-| **File Storage** | Cloudinary Free Tier (avatars, memories, card assets) |
-| **Payments** | Razorpay (subscription billing) |
-| **Security** | Helmet, CORS, rate limiting, Cloudflare Turnstile, bcrypt |
-| **Real-time** | Server-Sent Events (SSE) for notifications |
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Roles & Portals](#roles--portals)
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Environment Variables](#environment-variables)
+- [Getting Started](#getting-started)
+- [Deployment](#deployment)
+- [Known Limitations](#known-limitations)
 
 ---
 
-## 📁 Project Structure
+## Overview
+
+CampuSync is a full-stack, production-grade SaaS platform built as a solo project. It allows educational institutions to:
+
+- Onboard graduating batches via a secure multi-step registration flow
+- Issue digital identity cards with QR codes and PDF download
+- Run a shared memory wall (photos/videos) with emoji reactions
+- Handle alumni upgrade requests with an approval workflow
+- Provide a mentorship directory connecting students to alumni
+- Manage billing and subscription plans via Razorpay
+- Deliver real-time updates across all tabs and sessions via Socket.IO
+
+There is no "mock" backend — this is running live in production on a VPS with Nginx as a reverse proxy.
+
+---
+
+## Architecture
 
 ```
-CampuSync/
+┌─────────────────────────────────────────────────────────┐
+│                      VPS (Ubuntu)                       │
+│  ┌───────────────┐        ┌──────────────────────────┐  │
+│  │  Nginx (443)  │        │  Node.js API (port 5001) │  │
+│  │  SSL via      │◄──────►│  Express + Socket.IO     │  │
+│  │  Let's Encrypt│        │  /api/*  /api/socket.io  │  │
+│  └───────────────┘        └──────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+         ▲                           ▲
+         │                           │
+┌────────┴──────────┐    ┌───────────┴───────────┐
+│  Vercel (Web SPA) │    │  MongoDB Atlas         │
+│  React + Vite     │    │  + Cloudinary Storage  │
+└───────────────────┘    └───────────────────────┘
+```
+
+- **Frontend** → deployed on Vercel, environment variable `VITE_SOCKET_URL` points to the VPS API
+- **Backend** → Node.js running via PM2 on VPS, Nginx proxies `/api/` and `/api/socket.io/`
+- **Database** → MongoDB Atlas (cloud hosted)
+- **Storage** → Cloudinary (profile avatars, memory photos/videos, card assets)
+- **Cache / Rate Limiting** → Upstash Redis
+- **Payments** → Razorpay subscriptions
+
+---
+
+## Tech Stack
+
+### Backend
+| Package | Purpose |
+|---|---|
+| Express | HTTP framework |
+| Socket.IO 4 | Real-time bidirectional events |
+| Mongoose 9 | MongoDB ODM |
+| JWT | Auth (separate secrets per role) |
+| Multer + Cloudinary | File upload & cloud storage |
+| Nodemailer + SendGrid | Transactional email |
+| Razorpay | Subscription billing |
+| Upstash Redis | Session cache & rate limiting |
+| PDFKit + QRCode | Card PDF generation |
+| Helmet, express-rate-limit | Security hardening |
+| Winston | Structured logging |
+
+### Frontend
+| Package | Purpose |
+|---|---|
+| React 18 + TypeScript | UI framework |
+| Vite 5 | Build tool |
+| React Router v6 | Client-side routing |
+| Zustand | Global auth state |
+| Framer Motion | Animations & modals |
+| Socket.IO Client | Real-time connection |
+| Recharts | Analytics charts |
+| jsPDF + html2canvas | Client-side PDF export |
+| Lucide React | Icon system |
+| Vanilla CSS (custom design system) | No Tailwind — full custom tokens |
+
+---
+
+## Roles & Portals
+
+| Role | Entry Point | Description |
+|---|---|---|
+| **Super Admin** | `/super-admin/login` | Platform owner — approves institution registrations, manages all orgs, billing overview, audit log, trash recovery |
+| **Admin (Org Owner)** | `/admin/login` | Institution admin — manages cohort, memories, card design, alumni requests, billing, announcements |
+| **Student / User** | `/login` (Magic Link) | Graduating student — views digital card, memory wall, reacts to memories, mentorship directory, profile |
+| **Alumni** | Same login, elevated role | Upgraded student — extra badge, visible in mentorship directory as mentor |
+
+---
+
+## Features
+
+### Super Admin
+- Dashboard with platform-wide stats (orgs, users, cards, storage, MRR)
+- Registration queue — approve or reject institution sign-up requests with email notifications
+- Organizations table with live status toggle (active/suspended) + edit plan/quota modal
+- Audit log with CSV export
+- Trash bin with soft-delete restore / permanent purge
+
+### Admin (Per Org)
+- Cohort management — add/edit/remove students, CSV bulk import, magic link sender
+- Memory wall management — upload photos/videos, moderate content, react
+- Dynamic card designer — choose layout, colors, logo, QR code style; preview live
+- Alumni request review — approve/reject upgrade requests with socket-pushed notifications
+- Billing & plan management via Razorpay subscriptions
+- Announcement system — push org-wide notifications
+
+### Student / Alumni Portal
+- **Digital Identity Card** — rendered in-browser, QR-coded, PDF downloadable
+- **Memory Wall** — masonry grid, emoji reactions (live via socket), caption, uploader avatar
+- **Profile** — avatar upload/change/remove, personal details
+- **Mentorship Directory** — search alumni by branch/year
+- **Notifications bell** — real-time new memory, reaction, announcement alerts
+- **Alumni Upgrade** — request transition, tracked with status
+
+### Real-Time (Socket.IO)
+- Client joins rooms: `user:{id}`, `role:{role}`, `org:{orgId}`
+- Events emitted server-side after every mutation:
+  - `cohort:student-added/updated/removed`
+  - `reaction:updated`
+  - `memory:updated`
+  - `alumni:request-updated`
+  - `session:sync-required`
+  - `org:updated`
+  - `notification:new`
+  - `payment:success`
+
+---
+
+## Project Structure
+
+```
+WEB/
 ├── backend/
-│   ├── config/               # Database, Redis, env validation
-│   ├── middleware/            # Auth middleware (JWT verification)
-│   ├── scripts/              # Seed scripts
-│   ├── src/
-│   │   └── modules/
-│   │       ├── admin/        # Admin dashboard controllers & routes
-│   │       ├── alumni/       # Alumni-specific controllers
-│   │       ├── auth/         # User auth (login, magic link, password)
-│   │       ├── billing/      # Razorpay subscription management
-│   │       ├── cards/        # Card generation & QR codes
-│   │       ├── features/     # Mentorship, directory, events, jobs
-│   │       ├── memories/     # Memory wall (upload, reactions)
-│   │       ├── notifications/  # SSE stream & CRUD
-│   │       ├── organizations/  # Org management
-│   │       ├── superadmin/   # Super admin controllers
-│   │       └── users/        # User model & profile
-│   ├── utils/                # Email templates, JWT, QR, helpers
-│   └── server.js             # Express app entry point
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── admin/        # Admin tab components
-│   │   │   ├── auth/         # Auth UI (brand panel, back button)
-│   │   │   ├── billing/      # Plan selector
-│   │   │   ├── common/       # Button, Card, Modal
-│   │   │   ├── layout/       # SidebarShell, NotificationBell, PortalHeader
-│   │   │   ├── memories/     # Memory wall, uploader, lightbox
-│   │   │   ├── registration/ # OTP input, Turnstile
-│   │   │   └── student/      # Student/Alumni shared components
-│   │   ├── hooks/            # Custom hooks (useMemories, useMediaQuery)
-│   │   ├── pages/            # Route pages (portals, auth, landing)
-│   │   ├── store/            # Zustand stores (auth, modal)
-│   │   └── utils/            # API client (axios)
-│   └── index.html
+│   ├── server.js                # Express + Socket.IO bootstrap
+│   ├── middleware/              # Auth JWT, rate limit, multer
+│   ├── config/                  # Database, mailer, cloudinary
+│   ├── utils/                   # Audit log, email templates, cloudinary helpers
+│   └── src/modules/
+│       ├── auth/                # Magic link, setup password, QR login
+│       ├── admin/               # Cohort, memories, announcements, alumni requests
+│       ├── users/               # Profile, avatar
+│       ├── memories/            # Memory feed, reactions
+│       ├── cards/               # Card generation, PDF
+│       ├── billing/             # Razorpay plans, webhooks
+│       ├── notifications/       # Per-user notification store
+│       ├── mentorship/          # Directory API
+│       ├── alumni/              # Alumni request flow
+│       ├── organizations/       # Org settings
+│       └── superadmin/          # Platform management
+│
+└── frontend/
+    ├── src/
+    │   ├── pages/               # Route-level page components
+    │   │   ├── LandingPage.tsx
+    │   │   ├── Login.tsx        # Magic link login
+    │   │   ├── UserPortal.tsx   # Student portal shell
+    │   │   ├── AdminDashboard.tsx
+    │   │   └── SuperAdminDashboard.tsx
+    │   ├── components/
+    │   │   ├── SessionSyncProvider.tsx  # Socket.IO connection + event bridge
+    │   │   ├── student/         # User portal tabs
+    │   │   ├── admin/           # Admin dashboard components
+    │   │   ├── superadmin/      # Super admin components
+    │   │   ├── memories/        # Memory wall, filters
+    │   │   ├── layout/          # Sidebar, theme toggle, notification bell
+    │   │   └── billing/         # Plan selector, billing UI
+    │   ├── store/
+    │   │   └── authStore.ts     # Zustand global auth state
+    │   └── utils/
+    │       └── api.ts           # Axios instance with auth header injection
+    └── index.css                # Full custom design system (CSS variables)
 ```
 
 ---
 
-## 🚀 Getting Started
+## Environment Variables
+
+### Backend (`.env`)
+
+```env
+PORT=5001
+NODE_ENV=production
+MONGODB_URI=mongodb+srv://...
+JWT_SECRET_USER=...
+JWT_SECRET_ADMIN=...
+JWT_SECRET_SUPER_ADMIN=...
+JWT_SECRET_MAGIC_LINK=...
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+SENDGRID_API_KEY=...
+SMTP_FROM_EMAIL=...
+SMTP_FROM_NAME=CampuSync
+RAZORPAY_KEY_ID=...
+RAZORPAY_KEY_SECRET=...
+RAZORPAY_PLAN_ID_STARTER=...
+RAZORPAY_PLAN_ID_GROWTH=...
+RAZORPAY_WEBHOOK_SECRET=...
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
+API_BASE_URL=https://campusync-api.unicodetechnolab.site/api
+APP_BASE_URL=https://campusync-six.vercel.app
+CORS_ORIGINS=https://campusync-six.vercel.app
+SUPER_ADMIN_EMAIL=...
+```
+
+### Frontend (`.env`)
+
+```env
+VITE_API_URL=https://campusync-api.unicodetechnolab.site/api
+VITE_SOCKET_URL=https://campusync-api.unicodetechnolab.site
+```
+
+> **Note:** `VITE_SOCKET_URL` must NOT have a trailing slash and must NOT have `www.` — the Nginx proxy routes `/api/socket.io/` to port 5001.
+
+---
+
+## Getting Started
 
 ### Prerequisites
+- Node.js ≥ 18
+- MongoDB Atlas URI
+- Cloudinary account
+- SendGrid API key
 
-- **Node.js** ≥ 18.0.0
-- **MongoDB** (local or Atlas)
-- **Redis** (optional — uses in-memory fallback for local dev)
-
-### 1. Clone & Install
+### Backend
 
 ```bash
-git clone https://github.com/your-repo/CampuSync.git
-cd CampuSync
-
-# Backend
-cd backend
+cd WEB/backend
+cp .env.example .env        # fill in all values
 npm install
+npm run dev                 # nodemon — hot reload
+```
 
-# Frontend
-cd ../frontend
+### Frontend
+
+```bash
+cd WEB/frontend
+cp .env.example .env        # set VITE_API_URL and VITE_SOCKET_URL
 npm install
+npm run dev                 # Vite dev server on :5173
 ```
 
-### 2. Configure Environment
+---
+
+## Deployment
+
+### VPS (Backend)
 
 ```bash
-# Backend
-cp backend/.env.example backend/.env
-# Edit backend/.env with your credentials
+# Install PM2 globally
+npm install -g pm2
 
-# Frontend
-cp frontend/.env.example frontend/.env
-# Edit frontend/.env — set VITE_API_BASE_URL=http://localhost:5000/api
+# Start the API
+cd /var/www/campusync-api.unicodetechnolab.site
+pm2 start server.js --name campusync-api
+pm2 save
+pm2 startup
 ```
 
-**Key environment variables:**
+### Nginx config (key sections)
 
-| Variable | Description |
-|----------|-------------|
-| `MONGODB_URI` | MongoDB connection string |
-| `JWT_SECRET_*` | Separate secrets for super admin, admin, user, magic link |
-| `CLOUDINARY_*` | Cloud name, API key, and secret |
-| `SMTP_*` | SMTP host, port, user, pass for email |
-| `RAZORPAY_*` | Payment gateway keys |
-| `CLOUDFLARE_TURNSTILE_SECRET` | Bot protection |
-| `SUPER_ADMIN_EMAIL` | Seed email for super admin |
+```nginx
+location /api/ {
+    proxy_pass http://127.0.0.1:5001;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+}
 
-### 3. Seed Super Admin
-
-```bash
-cd backend
-npm run seed
+location /api/socket.io/ {
+    proxy_pass http://127.0.0.1:5001;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
 ```
 
-### 4. Run Development Servers
+### Frontend (Vercel)
 
-```bash
-# Terminal 1 — Backend (port 5000)
-cd backend
-npm run dev
-
-# Terminal 2 — Frontend (port 5173)
-cd frontend
-npm run dev
-```
-
-Visit **http://localhost:5173** to access the application.
+Push to GitHub → Vercel auto-deploys. Set the two env vars in Vercel project settings.
 
 ---
 
-## 🔐 Authentication Flow
+## Known Limitations
 
-```
-  Institution Registration
-         │
-    ┌────▼────┐
-    │ Super   │──── OTP Login (email)
-    │ Admin   │──── Approve/Reject Institutions
-    └────┬────┘
-         │ Approval → Magic Link Email
-    ┌────▼────┐
-    │  Admin  │──── Password Login
-    │         │──── Manage Cohorts, Cards, Features
-    └────┬────┘
-         │ CSV/Manual Import → Magic Link Email
-    ┌────▼────┐
-    │ Student │──── Set Up Password → Password Login
-    │ /Alumni │──── Access Portal Features
-    └─────────┘
-```
-
----
-
-## 🔑 API Structure
-
-All API routes are prefixed with `/api`.
-
-| Prefix | Auth | Description |
-|--------|------|-------------|
-| `/api/super-admin/*` | Super Admin JWT | Institution management |
-| `/api/admin/*` | Admin JWT | Dashboard, cohort, settings |
-| `/api/user/*` | User JWT | Auth, profile, become-alumni |
-| `/api/features/*` | Any JWT | Directory, mentors, events, jobs |
-| `/api/memories/*` | Any JWT | Memory wall CRUD |
-| `/api/notifications/*` | Any JWT | Bell notifications + SSE stream |
-| `/api/billing/*` | Admin JWT | Razorpay subscriptions |
-
----
-
-## 📊 Plans & Pricing
-
-| Feature | Trial | Starter | Growth |
-|---------|-------|---------|--------|
-| Digital Cards | ✅ | ✅ | ✅ |
-| Memory Wall | ✅ | ✅ | ✅ |
-| Basic Templates | ✅ | ✅ | ✅ |
-| Premium Templates | ❌ | ❌ | ✅ |
-| Alumni Portal | ❌ | ❌ | ✅ |
-| Mentorship | ❌ | ❌ | ✅ |
-| Events & Jobs | ❌ | ❌ | ✅ |
-| Bulk Export | ❌ | ✅ | ✅ |
-
----
-
-## 🧪 Development Notes
-
-- **Hot Reload**: Backend uses `nodemon`, frontend uses Vite HMR
-- **Email in Dev**: Emails are logged to console if SMTP is not configured. Use MailHog/MailTrap for local testing
-- **Redis Fallback**: If `UPSTASH_REDIS_REST_URL` is empty, an in-memory Map is used
-- **Cloudflare Turnstile**: Use test keys (`1x00000000000000000000AA`) for local dev
-
----
-
-## 📄 License
-
-This project is proprietary software. All rights reserved.
-
----
-
-**Built with ❤️ by the CampuSync team.**
+- **Cloudinary free tier** — storage limit is ~25 GB. Memory photos/videos consume quota. High-volume orgs should consider a paid tier.
+- **Render cold starts** — if backend is hosted on Render free tier, expect ~30s spin-up. The VPS deployment eliminates this.
+- **Socket.IO fallback** — transport order is `polling → websocket`. The polling handshake is required because the Nginx `Upgrade` header must be negotiated first.
+- **Rate limiting** — API routes are rate-limited via Upstash Redis. Aggressive scraping or testing bursts may result in 429 responses.
