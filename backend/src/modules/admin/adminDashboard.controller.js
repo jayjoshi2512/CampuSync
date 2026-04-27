@@ -192,6 +192,17 @@ async function importCsv (req, res) {
             }
         }
 
+        if (imported > 0) {
+            const io = req.app.get('io');
+            if (io) {
+                io.to(`org:${ org._id }`).emit('cohort:student-added', {
+                    timestamp: new Date().toISOString(),
+                    batch: true,
+                    count: imported
+                });
+            }
+        }
+
         auditLog.log('admin', req.actor.id, 'CSV_IMPORTED', 'organization', org._id, { total: records.length, imported, failed: errors.length }, req);
         res.json({ total: records.length, imported, failed: errors.length, errors });
     } catch(err) {

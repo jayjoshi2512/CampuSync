@@ -1,5 +1,5 @@
-// frontend/src/pages/AdminDashboard.tsx
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   LineChart,
   Line,
@@ -82,7 +82,13 @@ const growthTABS = [
 ];
 
 export default function AdminDashboard() {
-  const [tab, setTab] = useState("analytics");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get("tab") || "analytics");
+
+  const handleTabChange = (newTab: string) => {
+    setTab(newTab);
+    setSearchParams({ tab: newTab }, { replace: true });
+  };
   const [showCsv, setShowCsv] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [manualData, setManualData] = useState({
@@ -546,7 +552,7 @@ export default function AdminDashboard() {
     <SidebarShell
       tabs={tabsWithBadges}
       activeTab={tab}
-      onTabChange={setTab}
+      onTabChange={handleTabChange}
       header={
         <div className="pt-[20px] px-[20px] pb-[16px]">
           <div className="flex items-start justify-between gap-2 mb-[14px]">
