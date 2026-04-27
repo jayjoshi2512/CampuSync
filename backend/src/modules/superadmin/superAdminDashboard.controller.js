@@ -114,14 +114,26 @@ async function approveRegistration(req, res) {
         await registration.save();
 
         const onboardingToken = crypto.randomBytes(16).toString('hex');
-        const admin = await Admin.create({
-            organization_id: org._id,
-            name: registration.contact_name,
-            email: registration.contact_email,
-            role: 'owner',
-            onboarding_token: onboardingToken,
-            onboarding_token_expires_at: new Date(Date.now() + 72 * 60 * 60 * 1000),
-        });
+        
+        let admin = await Admin.findOne({ email: registration.contact_email });
+        if (admin) {
+            admin.organization_id = org._id;
+            admin.name = registration.contact_name;
+            admin.role = 'owner';
+            admin.onboarding_token = onboardingToken;
+            admin.onboarding_token_expires_at = new Date(Date.now() + 72 * 60 * 60 * 1000);
+            admin.is_active = true;
+            await admin.save();
+        } else {
+            admin = await Admin.create({
+                organization_id: org._id,
+                name: registration.contact_name,
+                email: registration.contact_email,
+                role: 'owner',
+                onboarding_token: onboardingToken,
+                onboarding_token_expires_at: new Date(Date.now() + 72 * 60 * 60 * 1000),
+            });
+        }
 
         const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
         const setupUrl = `${appBaseUrl}/admin/setup-password?token=${onboardingToken}`;
@@ -334,6 +346,10 @@ async function purgeTrash(req, res) {
             if (record[field]) {
                 try { await deleteAsset(record[field]); } catch (e) { logger.warn(`Failed to delete Cloudinary asset ${record[field]}:`, e.message); }
             }
+        }
+
+        if (table === 'organizations') {
+            await Admin.deleteOne({ organization_id: record._id });
         }
 
         await record.deleteOne();
