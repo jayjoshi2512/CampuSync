@@ -742,7 +742,7 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
       )}
 
       {/* Trust logos strip */}
-      <motion.div
+      {/* <motion.div
         {...fadeUp}
         transition={{ duration: 0.5, delay: 0.38 }}
         style={{
@@ -790,7 +790,7 @@ export function LandingHero({ isCompactLayout }: { isCompactLayout: boolean }) {
             )
           )}
         </div>
-      </motion.div>
+      </motion.div> */}
     </section>
   );
 }
